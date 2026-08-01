@@ -14,7 +14,7 @@ export default async function Home() {
   const { categories, standalone } = groupByCategory(data);
 
   return (
-    <div className="mx-auto max-w-5xl px-6 py-10">
+    <div className="mx-auto max-w-[100rem] px-6 py-10">
       <div className="mb-8 flex items-center justify-between">
         <h1 className="text-2xl font-semibold tracking-tight">Biomarkers</h1>
         {authed ? <AddBiomarkerDialog /> : <UnlockDialog />}
@@ -34,7 +34,7 @@ export default async function Home() {
           </CardContent>
         </Card>
       ) : (
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
           {categories.map(({ category, items }) => (
             <CategoryCard key={category} category={category} items={items} />
           ))}

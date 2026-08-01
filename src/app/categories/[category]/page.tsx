@@ -23,7 +23,7 @@ export default async function CategoryPage({
   if (items.length === 0) notFound();
 
   return (
-    <div className="mx-auto max-w-5xl px-6 py-10">
+    <div className="mx-auto max-w-[100rem] px-6 py-10">
       <Link
         href="/"
         className="mb-6 inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
@@ -37,7 +37,7 @@ export default async function CategoryPage({
         {authed ? <AddBiomarkerDialog defaultCategory={category} /> : <UnlockDialog />}
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
         {items.map((b) => (
           <BiomarkerCard key={b.id} b={b} showCategory={false} />
         ))}
