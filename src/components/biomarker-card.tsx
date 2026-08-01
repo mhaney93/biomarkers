@@ -15,16 +15,18 @@ export function BiomarkerCard({ b, showCategory = true }: { b: BiomarkerWithLate
   return (
     <Link href={`/biomarkers/${b.id}`}>
       <Card className="h-full transition-colors hover:border-foreground/20">
-        <CardHeader className="flex flex-row items-start justify-between gap-2 space-y-0">
-          <div className="min-w-0">
-            <p className="font-medium leading-tight">{b.name}</p>
-            {showCategory && b.category && (
-              <p className="text-xs text-muted-foreground">{b.category}</p>
+        <CardHeader className="flex flex-col items-start gap-2 space-y-0">
+          <p className="font-medium leading-tight">{b.name}</p>
+          <div className="flex w-full items-center justify-between gap-2">
+            {showCategory && b.category ? (
+              <p className="min-w-0 truncate text-xs text-muted-foreground">{b.category}</p>
+            ) : (
+              <span />
             )}
+            <Badge variant="outline" className={`shrink-0 ${statusStyles[status]}`}>
+              {statusLabels[status]}
+            </Badge>
           </div>
-          <Badge variant="outline" className={`shrink-0 ${statusStyles[status]}`}>
-            {statusLabels[status]}
-          </Badge>
         </CardHeader>
         <CardContent>
           {b.latest ? (
