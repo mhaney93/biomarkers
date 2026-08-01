@@ -37,7 +37,7 @@ export function TrendChart({
   return (
     <div className="h-72 w-full">
       <ResponsiveContainer width="100%" height="100%">
-        <LineChart data={chartData} margin={{ top: 8, right: 16, bottom: 0, left: 0 }}>
+        <LineChart data={chartData} margin={{ top: 16, right: 16, bottom: 8, left: 8 }}>
           <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />
           {refLow != null && refHigh != null && (
             <ReferenceArea y1={refLow} y2={refHigh} fill="#2a78d6" fillOpacity={0.08} strokeOpacity={0} />
@@ -48,13 +48,15 @@ export function TrendChart({
             axisLine={{ stroke: "var(--border)" }}
             tickLine={false}
             minTickGap={24}
+            padding={{ left: 12, right: 12 }}
           />
           <YAxis
             tick={{ fontSize: 12, fill: "var(--muted-foreground)" }}
             axisLine={false}
             tickLine={false}
-            width={44}
+            width={60}
             domain={["auto", "auto"]}
+            padding={{ top: 16, bottom: 16 }}
             unit={!isDuration && unit ? ` ${unit}` : undefined}
             tickFormatter={isDuration ? (v: number) => formatDuration(v) : undefined}
           />
