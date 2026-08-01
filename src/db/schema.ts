@@ -18,7 +18,8 @@ export const readings = pgTable(
     biomarkerId: uuid("biomarker_id")
       .notNull()
       .references(() => biomarkers.id, { onDelete: "cascade" }),
-    value: numeric("value").notNull(),
+    value: numeric("value"),
+    textValue: text("text_value"),
     takenAt: date("taken_at").notNull(),
     notes: text("notes"),
     createdAt: timestamp("created_at").notNull().defaultNow(),

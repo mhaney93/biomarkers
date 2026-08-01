@@ -7,7 +7,8 @@ import { format } from "date-fns";
 import type { BiomarkerWithLatest } from "@/lib/biomarkers";
 
 export function BiomarkerCard({ b, showCategory = true }: { b: BiomarkerWithLatest; showCategory?: boolean }) {
-  const value = b.latest ? Number(b.latest.value) : null;
+  const isText = b.valueType === "text";
+  const value = !isText && b.latest?.value != null ? Number(b.latest.value) : null;
   const refLow = b.refLow != null ? Number(b.refLow) : null;
   const refHigh = b.refHigh != null ? Number(b.refHigh) : null;
   const status = getStatus(value, refLow, refHigh);
@@ -23,24 +24,30 @@ export function BiomarkerCard({ b, showCategory = true }: { b: BiomarkerWithLate
             ) : (
               <span />
             )}
-            <Badge variant="outline" className={`shrink-0 ${statusStyles[status]}`}>
-              {statusLabels[status]}
-            </Badge>
+            {!isText && (
+              <Badge variant="outline" className={`shrink-0 ${statusStyles[status]}`}>
+                {statusLabels[status]}
+              </Badge>
+            )}
           </div>
         </CardHeader>
         <CardContent>
           {b.latest ? (
             <>
-              <p className="text-2xl font-semibold tabular-nums">
-                {b.valueType === "duration" && value != null ? (
-                  formatDuration(value)
-                ) : (
-                  <>
-                    {value}
-                    {b.unit && <span className="text-sm font-normal text-muted-foreground"> {b.unit}</span>}
-                  </>
-                )}
-              </p>
+              {isText ? (
+                <p className="line-clamp-2 text-lg font-semibold">{b.latest.textValue}</p>
+              ) : (
+                <p className="text-2xl font-semibold tabular-nums">
+                  {b.valueType === "duration" && value != null ? (
+                    formatDuration(value)
+                  ) : (
+                    <>
+                      {value}
+                      {b.unit && <span className="text-sm font-normal text-muted-foreground"> {b.unit}</span>}
+                    </>
+                  )}
+                </p>
+              )}
               <p className="text-xs text-muted-foreground">
                 {format(new Date(b.latest.takenAt), "MMM d, yyyy")} · {b.count} reading
                 {b.count === 1 ? "" : "s"}

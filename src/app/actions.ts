@@ -8,14 +8,18 @@ import { cookies } from "next/headers";
 import { AUTH_COOKIE, getAuthToken, getExpectedToken, requireAuth } from "@/lib/auth";
 import { toTotalMinutes } from "@/lib/duration";
 
-function resolveReadingValue(formData: FormData): string | null {
+function resolveReadingValue(formData: FormData): { value: string | null; textValue: string | null } {
+  if (formData.has("textValue")) {
+    const textValue = String(formData.get("textValue") ?? "").trim();
+    return { value: null, textValue: textValue || null };
+  }
   if (formData.has("hours") || formData.has("minutes")) {
     const hours = Number(formData.get("hours") ?? 0);
     const minutes = Number(formData.get("minutes") ?? 0);
-    return String(toTotalMinutes(hours, minutes));
+    return { value: String(toTotalMinutes(hours, minutes)), textValue: null };
   }
   const value = String(formData.get("value") ?? "");
-  return value || null;
+  return { value: value || null, textValue: null };
 }
 
 function resolveRefValue(formData: FormData, prefix: "refLow" | "refHigh"): string | null {
@@ -56,10 +60,11 @@ export async function createBiomarker(formData: FormData) {
 
   const name = String(formData.get("name") ?? "").trim();
   const valueType = String(formData.get("valueType") ?? "number").trim();
-  const unit = valueType === "duration" ? null : String(formData.get("unit") ?? "").trim() || null;
+  const hasRange = valueType !== "text";
+  const unit = valueType === "number" ? String(formData.get("unit") ?? "").trim() || null : null;
   const category = String(formData.get("category") ?? "").trim() || null;
-  const refLow = resolveRefValue(formData, "refLow");
-  const refHigh = resolveRefValue(formData, "refHigh");
+  const refLow = hasRange ? resolveRefValue(formData, "refLow") : null;
+  const refHigh = hasRange ? resolveRefValue(formData, "refHigh") : null;
 
   if (!name) throw new Error("Name is required");
 
@@ -73,10 +78,11 @@ export async function updateBiomarker(formData: FormData) {
   const id = String(formData.get("id") ?? "");
   const name = String(formData.get("name") ?? "").trim();
   const valueType = String(formData.get("valueType") ?? "number").trim();
-  const unit = valueType === "duration" ? null : String(formData.get("unit") ?? "").trim() || null;
+  const hasRange = valueType !== "text";
+  const unit = valueType === "number" ? String(formData.get("unit") ?? "").trim() || null : null;
   const category = String(formData.get("category") ?? "").trim() || null;
-  const refLow = resolveRefValue(formData, "refLow");
-  const refHigh = resolveRefValue(formData, "refHigh");
+  const refLow = hasRange ? resolveRefValue(formData, "refLow") : null;
+  const refHigh = hasRange ? resolveRefValue(formData, "refHigh") : null;
 
   if (!id || !name) throw new Error("Name is required");
 
@@ -99,13 +105,15 @@ export async function addReading(formData: FormData) {
   await requireAuth();
 
   const biomarkerId = String(formData.get("biomarkerId") ?? "");
-  const value = resolveReadingValue(formData);
+  const { value, textValue } = resolveReadingValue(formData);
   const takenAt = String(formData.get("takenAt") ?? "");
   const notes = String(formData.get("notes") ?? "").trim() || null;
 
-  if (!biomarkerId || value == null || !takenAt) throw new Error("Missing required fields");
+  if (!biomarkerId || (value == null && textValue == null) || !takenAt) {
+    throw new Error("Missing required fields");
+  }
 
-  await getDb().insert(readings).values({ biomarkerId, value, takenAt, notes });
+  await getDb().insert(readings).values({ biomarkerId, value, textValue, takenAt, notes });
   revalidatePath("/");
   revalidatePath(`/biomarkers/${biomarkerId}`);
 }
@@ -115,13 +123,15 @@ export async function updateReading(formData: FormData) {
 
   const id = String(formData.get("id") ?? "");
   const biomarkerId = String(formData.get("biomarkerId") ?? "");
-  const value = resolveReadingValue(formData);
+  const { value, textValue } = resolveReadingValue(formData);
   const takenAt = String(formData.get("takenAt") ?? "");
   const notes = String(formData.get("notes") ?? "").trim() || null;
 
-  if (!id || !biomarkerId || value == null || !takenAt) throw new Error("Missing required fields");
+  if (!id || !biomarkerId || (value == null && textValue == null) || !takenAt) {
+    throw new Error("Missing required fields");
+  }
 
-  await getDb().update(readings).set({ value, takenAt, notes }).where(eq(readings.id, id));
+  await getDb().update(readings).set({ value, textValue, takenAt, notes }).where(eq(readings.id, id));
   revalidatePath("/");
   revalidatePath(`/biomarkers/${biomarkerId}`);
 }

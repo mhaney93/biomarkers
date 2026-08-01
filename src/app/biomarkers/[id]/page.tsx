@@ -40,6 +40,8 @@ export default async function BiomarkerPage({
   const [biomarker] = await db.select().from(biomarkers).where(eq(biomarkers.id, id));
   if (!biomarker) notFound();
 
+  const isText = biomarker.valueType === "text";
+
   let backHref = "/";
   let backLabel = "All biomarkers";
   if (biomarker.category) {
@@ -62,13 +64,19 @@ export default async function BiomarkerPage({
   const refLow = biomarker.refLow != null ? Number(biomarker.refLow) : null;
   const refHigh = biomarker.refHigh != null ? Number(biomarker.refHigh) : null;
 
-  const chartData = allReadings.map((r) => ({
-    takenAt: r.takenAt,
-    value: Number(r.value),
-  }));
+  const chartData = isText
+    ? []
+    : allReadings.map((r) => ({
+        takenAt: r.takenAt,
+        value: Number(r.value),
+      }));
 
   const latest = allReadings[allReadings.length - 1] ?? null;
-  const latestStatus = getStatus(latest ? Number(latest.value) : null, refLow, refHigh);
+  const latestStatus = getStatus(
+    !isText && latest?.value != null ? Number(latest.value) : null,
+    refLow,
+    refHigh
+  );
 
   const sortedDesc = [...allReadings].sort(
     (a, b) => new Date(b.takenAt).getTime() - new Date(a.takenAt).getTime()
@@ -88,18 +96,22 @@ export default async function BiomarkerPage({
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
             <h1 className="text-2xl font-semibold tracking-tight">{biomarker.name}</h1>
-            <Badge variant="outline" className={`shrink-0 ${statusStyles[latestStatus]}`}>
-              {statusLabels[latestStatus]}
-            </Badge>
+            {!isText && (
+              <Badge variant="outline" className={`shrink-0 ${statusStyles[latestStatus]}`}>
+                {statusLabels[latestStatus]}
+              </Badge>
+            )}
           </div>
           <p className="text-sm text-muted-foreground">
             {biomarker.category ? `${biomarker.category} · ` : ""}
-            {biomarker.valueType === "duration"
-              ? "Duration (h:m)"
-              : biomarker.unit
-                ? `Unit: ${biomarker.unit}`
-                : "No unit"}
-            {refLow != null || refHigh != null
+            {isText
+              ? "Text"
+              : biomarker.valueType === "duration"
+                ? "Duration (h:m)"
+                : biomarker.unit
+                  ? `Unit: ${biomarker.unit}`
+                  : "No unit"}
+            {!isText && (refLow != null || refHigh != null)
               ? biomarker.valueType === "duration"
                 ? ` · Reference: ${refLow != null ? formatDuration(refLow) : "–"}–${refHigh != null ? formatDuration(refHigh) : "–"}`
                 : ` · Reference: ${refLow ?? "–"}–${refHigh ?? "–"}`
@@ -124,26 +136,28 @@ export default async function BiomarkerPage({
         </div>
       </div>
 
-      <Card className="mb-6">
-        <CardHeader>
-          <CardTitle className="text-base">Trend</CardTitle>
-        </CardHeader>
-        <CardContent>
-          {chartData.length > 0 ? (
-            <TrendChart
-              data={chartData}
-              unit={biomarker.unit}
-              valueType={biomarker.valueType}
-              refLow={refLow}
-              refHigh={refHigh}
-            />
-          ) : (
-            <p className="py-12 text-center text-sm text-muted-foreground">
-              No readings yet — add one to see the trend.
-            </p>
-          )}
-        </CardContent>
-      </Card>
+      {!isText && (
+        <Card className="mb-6">
+          <CardHeader>
+            <CardTitle className="text-base">Trend</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {chartData.length > 0 ? (
+              <TrendChart
+                data={chartData}
+                unit={biomarker.unit}
+                valueType={biomarker.valueType}
+                refLow={refLow}
+                refHigh={refHigh}
+              />
+            ) : (
+              <p className="py-12 text-center text-sm text-muted-foreground">
+                No readings yet — add one to see the trend.
+              </p>
+            )}
+          </CardContent>
+        </Card>
+      )}
 
       <Card>
         <CardHeader>
@@ -158,22 +172,24 @@ export default async function BiomarkerPage({
                 <TableRow>
                   <TableHead>Date</TableHead>
                   <TableHead>Value</TableHead>
-                  <TableHead>Status</TableHead>
+                  {!isText && <TableHead>Status</TableHead>}
                   <TableHead>Notes</TableHead>
                   {authed && <TableHead className="w-20" />}
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {sortedDesc.map((r) => {
-                  const value = Number(r.value);
+                  const value = !isText && r.value != null ? Number(r.value) : null;
                   const status = getStatus(value, refLow, refHigh);
                   return (
                     <TableRow key={r.id}>
                       <TableCell className="whitespace-nowrap">
                         {format(new Date(r.takenAt), "MMM d, yyyy")}
                       </TableCell>
-                      <TableCell className="tabular-nums">
-                        {biomarker.valueType === "duration" ? (
+                      <TableCell className={isText ? "max-w-[280px]" : "tabular-nums"}>
+                        {isText ? (
+                          r.textValue
+                        ) : biomarker.valueType === "duration" && value != null ? (
                           formatDuration(value)
                         ) : (
                           <>
@@ -182,11 +198,13 @@ export default async function BiomarkerPage({
                           </>
                         )}
                       </TableCell>
-                      <TableCell>
-                        <Badge variant="outline" className={statusStyles[status]}>
-                          {statusLabels[status]}
-                        </Badge>
-                      </TableCell>
+                      {!isText && (
+                        <TableCell>
+                          <Badge variant="outline" className={statusStyles[status]}>
+                            {statusLabels[status]}
+                          </Badge>
+                        </TableCell>
+                      )}
                       <TableCell className="max-w-[240px] truncate text-muted-foreground">
                         {r.notes ?? ""}
                       </TableCell>

@@ -37,8 +37,10 @@ type Biomarker = {
 export function EditBiomarkerDialog({ biomarker }: { biomarker: Biomarker }) {
   const [open, setOpen] = useState(false);
   const [isPending, startTransition] = useTransition();
-  const [valueType, setValueType] = useState<"number" | "duration">(
-    biomarker.valueType === "duration" ? "duration" : "number"
+  const [valueType, setValueType] = useState<"number" | "duration" | "text">(
+    biomarker.valueType === "duration" || biomarker.valueType === "text"
+      ? (biomarker.valueType as "duration" | "text")
+      : "number"
   );
 
   return (
@@ -74,13 +76,14 @@ export function EditBiomarkerDialog({ biomarker }: { biomarker: Biomarker }) {
             </div>
             <div className="grid gap-2">
               <Label htmlFor="edit-valueType-select">Value type</Label>
-              <Select value={valueType} onValueChange={(v) => setValueType(v as "number" | "duration")}>
+              <Select value={valueType} onValueChange={(v) => setValueType(v as "number" | "duration" | "text")}>
                 <SelectTrigger id="edit-valueType-select">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="number">Number</SelectItem>
                   <SelectItem value="duration">Duration (h:m)</SelectItem>
+                  <SelectItem value="text">Text</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -94,7 +97,7 @@ export function EditBiomarkerDialog({ biomarker }: { biomarker: Biomarker }) {
               <Label htmlFor="edit-category">Category (optional)</Label>
               <Input id="edit-category" name="category" defaultValue={biomarker.category ?? ""} />
             </div>
-            {valueType === "duration" ? (
+            {valueType === "duration" && (
               <div className="grid gap-4">
                 <div className="grid gap-2">
                   <Label>Reference low</Label>
@@ -111,7 +114,8 @@ export function EditBiomarkerDialog({ biomarker }: { biomarker: Biomarker }) {
                   />
                 </div>
               </div>
-            ) : (
+            )}
+            {valueType === "number" && (
               <div className="grid grid-cols-2 gap-4">
                 <div className="grid gap-2">
                   <Label htmlFor="edit-refLow">Reference low</Label>

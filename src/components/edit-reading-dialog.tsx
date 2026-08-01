@@ -11,6 +11,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { updateReading } from "@/app/actions";
 import { Pencil } from "lucide-react";
@@ -20,7 +21,8 @@ import { splitMinutes } from "@/lib/duration";
 type Reading = {
   id: string;
   biomarkerId: string;
-  value: string;
+  value: string | null;
+  textValue: string | null;
   takenAt: string;
   notes: string | null;
 };
@@ -38,7 +40,7 @@ export function EditReadingDialog({
 }) {
   const [open, setOpen] = useState(false);
   const [isPending, startTransition] = useTransition();
-  const { hours, minutes } = splitMinutes(Number(reading.value));
+  const { hours, minutes } = splitMinutes(Number(reading.value ?? 0));
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
@@ -67,7 +69,7 @@ export function EditReadingDialog({
             <DialogTitle>Edit reading — {biomarkerName}</DialogTitle>
           </DialogHeader>
           <div className="grid gap-4 py-4">
-            {valueType === "duration" ? (
+            {valueType === "duration" && (
               <div className="grid grid-cols-2 gap-4">
                 <div className="grid gap-2">
                   <Label htmlFor="edit-hours">Hours</Label>
@@ -96,7 +98,20 @@ export function EditReadingDialog({
                   />
                 </div>
               </div>
-            ) : (
+            )}
+            {valueType === "text" && (
+              <div className="grid gap-2">
+                <Label htmlFor="edit-textValue">Value</Label>
+                <Textarea
+                  id="edit-textValue"
+                  name="textValue"
+                  defaultValue={reading.textValue ?? ""}
+                  required
+                  autoFocus
+                />
+              </div>
+            )}
+            {valueType === "number" && (
               <div className="grid gap-2">
                 <Label htmlFor="edit-value">Value{unit ? ` (${unit})` : ""}</Label>
                 <Input
@@ -104,7 +119,7 @@ export function EditReadingDialog({
                   name="value"
                   type="number"
                   step="any"
-                  defaultValue={reading.value}
+                  defaultValue={reading.value ?? ""}
                   required
                   autoFocus
                 />

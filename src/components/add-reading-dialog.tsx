@@ -11,6 +11,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { addReading } from "@/app/actions";
 import { Plus } from "lucide-react";
@@ -63,7 +64,7 @@ export function AddReadingDialog({
             <DialogTitle>Add reading — {biomarkerName}</DialogTitle>
           </DialogHeader>
           <div className="grid gap-4 py-4">
-            {valueType === "duration" ? (
+            {valueType === "duration" && (
               <div className="grid grid-cols-2 gap-4">
                 <div className="grid gap-2">
                   <Label htmlFor="hours">Hours</Label>
@@ -74,7 +75,14 @@ export function AddReadingDialog({
                   <Input id="minutes" name="minutes" type="number" step="1" min="0" max="59" defaultValue="0" required />
                 </div>
               </div>
-            ) : (
+            )}
+            {valueType === "text" && (
+              <div className="grid gap-2">
+                <Label htmlFor="textValue">Value</Label>
+                <Textarea id="textValue" name="textValue" required autoFocus />
+              </div>
+            )}
+            {valueType === "number" && (
               <div className="grid gap-2">
                 <Label htmlFor="value">Value{unit ? ` (${unit})` : ""}</Label>
                 <Input id="value" name="value" type="number" step="any" required autoFocus />

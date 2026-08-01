@@ -27,7 +27,7 @@ import { toast } from "sonner";
 export function AddBiomarkerDialog({ defaultCategory }: { defaultCategory?: string } = {}) {
   const [open, setOpen] = useState(false);
   const [isPending, startTransition] = useTransition();
-  const [valueType, setValueType] = useState<"number" | "duration">("number");
+  const [valueType, setValueType] = useState<"number" | "duration" | "text">("number");
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
@@ -63,13 +63,14 @@ export function AddBiomarkerDialog({ defaultCategory }: { defaultCategory?: stri
             </div>
             <div className="grid gap-2">
               <Label htmlFor="valueType-select">Value type</Label>
-              <Select value={valueType} onValueChange={(v) => setValueType(v as "number" | "duration")}>
+              <Select value={valueType} onValueChange={(v) => setValueType(v as "number" | "duration" | "text")}>
                 <SelectTrigger id="valueType-select">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="number">Number</SelectItem>
                   <SelectItem value="duration">Duration (h:m)</SelectItem>
+                  <SelectItem value="text">Text</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -88,7 +89,7 @@ export function AddBiomarkerDialog({ defaultCategory }: { defaultCategory?: stri
                 defaultValue={defaultCategory ?? ""}
               />
             </div>
-            {valueType === "duration" ? (
+            {valueType === "duration" && (
               <div className="grid gap-4">
                 <div className="grid gap-2">
                   <Label>Reference low</Label>
@@ -99,7 +100,8 @@ export function AddBiomarkerDialog({ defaultCategory }: { defaultCategory?: stri
                   <DurationRangeFields idPrefix="refHigh" />
                 </div>
               </div>
-            ) : (
+            )}
+            {valueType === "number" && (
               <div className="grid grid-cols-2 gap-4">
                 <div className="grid gap-2">
                   <Label htmlFor="refLow">Reference low</Label>
