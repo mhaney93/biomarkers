@@ -1,6 +1,6 @@
 import { getDb } from "@/db";
 import { biomarkers, readings } from "@/db/schema";
-import { asc, desc, eq } from "drizzle-orm";
+import { asc, desc, eq, sql } from "drizzle-orm";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -39,6 +39,19 @@ export default async function BiomarkerPage({
   const [biomarker] = await db.select().from(biomarkers).where(eq(biomarkers.id, id));
   if (!biomarker) notFound();
 
+  let backHref = "/";
+  let backLabel = "All biomarkers";
+  if (biomarker.category) {
+    const [{ count }] = await db
+      .select({ count: sql<number>`count(*)::int` })
+      .from(biomarkers)
+      .where(eq(biomarkers.category, biomarker.category));
+    if (count >= 2) {
+      backHref = `/categories/${encodeURIComponent(biomarker.category)}`;
+      backLabel = biomarker.category;
+    }
+  }
+
   const allReadings = await db
     .select()
     .from(readings)
@@ -63,11 +76,11 @@ export default async function BiomarkerPage({
   return (
     <div className="mx-auto max-w-5xl px-6 py-10">
       <Link
-        href="/"
+        href={backHref}
         className="mb-6 inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
       >
         <ArrowLeft className="h-4 w-4" />
-        All biomarkers
+        {backLabel}
       </Link>
 
       <div className="mb-6 flex items-start justify-between gap-4">
