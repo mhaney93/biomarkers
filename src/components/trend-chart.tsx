@@ -57,17 +57,25 @@ export function TrendChart({
           <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />
           {hasRange && (
             <>
-              <ReferenceArea y1={refLow!} y2={refHigh!} fill="url(#refRangeHatch)" strokeOpacity={0} />
+              <ReferenceArea
+                y1={refLow!}
+                y2={refHigh!}
+                fill="url(#refRangeHatch)"
+                strokeOpacity={0}
+                ifOverflow="extendDomain"
+              />
               <ReferenceLine
                 y={refLow!}
                 stroke="#1baf7a"
                 strokeDasharray="6 4"
+                ifOverflow="extendDomain"
                 label={{ value: refFormat(refLow!), position: "insideBottomLeft", fill: "#1baf7a", fontSize: 11 }}
               />
               <ReferenceLine
                 y={refHigh!}
                 stroke="#1baf7a"
                 strokeDasharray="6 4"
+                ifOverflow="extendDomain"
                 label={{ value: refFormat(refHigh!), position: "insideTopLeft", fill: "#1baf7a", fontSize: 11 }}
               />
             </>
@@ -77,6 +85,7 @@ export function TrendChart({
               y={singleRef}
               stroke="#1baf7a"
               strokeDasharray="6 4"
+              ifOverflow="extendDomain"
               label={{ value: refFormat(singleRef), position: "insideTopLeft", fill: "#1baf7a", fontSize: 11 }}
             />
           )}
