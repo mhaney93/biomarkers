@@ -4,7 +4,6 @@ import { asc, desc, eq } from "drizzle-orm";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
   Table,
@@ -18,8 +17,11 @@ import { TrendChart } from "@/components/trend-chart";
 import { AddReadingDialog } from "@/components/add-reading-dialog";
 import { EditBiomarkerDialog } from "@/components/edit-biomarker-dialog";
 import { DeleteBiomarkerButton } from "@/components/delete-biomarker-button";
+import { EditReadingDialog } from "@/components/edit-reading-dialog";
 import { DeleteReadingButton } from "@/components/delete-reading-button";
+import { UnlockDialog } from "@/components/unlock-dialog";
 import { getStatus, statusLabels, statusStyles } from "@/lib/status";
+import { isAuthed } from "@/lib/auth";
 import { ArrowLeft } from "lucide-react";
 import { format } from "date-fns";
 
@@ -32,6 +34,7 @@ export default async function BiomarkerPage({
 }) {
   const { id } = await params;
   const db = getDb();
+  const authed = await isAuthed();
 
   const [biomarker] = await db.select().from(biomarkers).where(eq(biomarkers.id, id));
   if (!biomarker) notFound();
@@ -84,13 +87,19 @@ export default async function BiomarkerPage({
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <AddReadingDialog
-            biomarkerId={biomarker.id}
-            biomarkerName={biomarker.name}
-            unit={biomarker.unit}
-          />
-          <EditBiomarkerDialog biomarker={biomarker} />
-          <DeleteBiomarkerButton id={biomarker.id} name={biomarker.name} />
+          {authed ? (
+            <>
+              <AddReadingDialog
+                biomarkerId={biomarker.id}
+                biomarkerName={biomarker.name}
+                unit={biomarker.unit}
+              />
+              <EditBiomarkerDialog biomarker={biomarker} />
+              <DeleteBiomarkerButton id={biomarker.id} name={biomarker.name} />
+            </>
+          ) : (
+            <UnlockDialog />
+          )}
         </div>
       </div>
 
@@ -124,7 +133,7 @@ export default async function BiomarkerPage({
                   <TableHead>Value</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead>Notes</TableHead>
-                  <TableHead className="w-10" />
+                  {authed && <TableHead className="w-20" />}
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -148,9 +157,18 @@ export default async function BiomarkerPage({
                       <TableCell className="max-w-[240px] truncate text-muted-foreground">
                         {r.notes ?? ""}
                       </TableCell>
-                      <TableCell>
-                        <DeleteReadingButton id={r.id} biomarkerId={biomarker.id} />
-                      </TableCell>
+                      {authed && (
+                        <TableCell>
+                          <div className="flex items-center gap-1">
+                            <EditReadingDialog
+                              reading={r}
+                              biomarkerName={biomarker.name}
+                              unit={biomarker.unit}
+                            />
+                            <DeleteReadingButton id={r.id} biomarkerId={biomarker.id} />
+                          </div>
+                        </TableCell>
+                      )}
                     </TableRow>
                   );
                 })}
