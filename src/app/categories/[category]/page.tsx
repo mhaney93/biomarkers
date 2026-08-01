@@ -1,7 +1,10 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { BiomarkerCard } from "@/components/biomarker-card";
+import { AddBiomarkerDialog } from "@/components/add-biomarker-dialog";
+import { UnlockDialog } from "@/components/unlock-dialog";
 import { getBiomarkersWithLatest } from "@/lib/biomarkers";
+import { isAuthed } from "@/lib/auth";
 import { ArrowLeft } from "lucide-react";
 
 export const dynamic = "force-dynamic";
@@ -14,7 +17,7 @@ export default async function CategoryPage({
   const { category: encoded } = await params;
   const category = decodeURIComponent(encoded);
 
-  const data = await getBiomarkersWithLatest();
+  const [data, authed] = await Promise.all([getBiomarkersWithLatest(), isAuthed()]);
   const items = data.filter((b) => b.category === category);
 
   if (items.length === 0) notFound();
@@ -29,7 +32,10 @@ export default async function CategoryPage({
         All biomarkers
       </Link>
 
-      <h1 className="mb-8 text-2xl font-semibold tracking-tight">{category}</h1>
+      <div className="mb-8 flex items-center justify-between">
+        <h1 className="text-2xl font-semibold tracking-tight">{category}</h1>
+        {authed ? <AddBiomarkerDialog defaultCategory={category} /> : <UnlockDialog />}
+      </div>
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {items.map((b) => (

@@ -24,7 +24,7 @@ import { DurationRangeFields } from "@/components/duration-range-fields";
 import { Plus } from "lucide-react";
 import { toast } from "sonner";
 
-export function AddBiomarkerDialog() {
+export function AddBiomarkerDialog({ defaultCategory }: { defaultCategory?: string } = {}) {
   const [open, setOpen] = useState(false);
   const [isPending, startTransition] = useTransition();
   const [valueType, setValueType] = useState<"number" | "duration">("number");
@@ -81,7 +81,12 @@ export function AddBiomarkerDialog() {
             )}
             <div className="grid gap-2">
               <Label htmlFor="category">Category (optional)</Label>
-              <Input id="category" name="category" placeholder="e.g. Lipid Panel" />
+              <Input
+                id="category"
+                name="category"
+                placeholder="e.g. Lipid Panel"
+                defaultValue={defaultCategory ?? ""}
+              />
             </div>
             {valueType === "duration" ? (
               <div className="grid gap-4">
