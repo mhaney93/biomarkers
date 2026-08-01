@@ -20,6 +20,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { updateBiomarker } from "@/app/actions";
+import { DurationRangeFields } from "@/components/duration-range-fields";
 import { Pencil } from "lucide-react";
 import { toast } from "sonner";
 
@@ -93,32 +94,47 @@ export function EditBiomarkerDialog({ biomarker }: { biomarker: Biomarker }) {
               <Label htmlFor="edit-category">Category (optional)</Label>
               <Input id="edit-category" name="category" defaultValue={biomarker.category ?? ""} />
             </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="grid gap-2">
-                <Label htmlFor="edit-refLow">
-                  Reference low{valueType === "duration" ? " (minutes)" : ""}
-                </Label>
-                <Input
-                  id="edit-refLow"
-                  name="refLow"
-                  type="number"
-                  step="any"
-                  defaultValue={biomarker.refLow ?? ""}
-                />
+            {valueType === "duration" ? (
+              <div className="grid gap-4">
+                <div className="grid gap-2">
+                  <Label>Reference low</Label>
+                  <DurationRangeFields
+                    idPrefix="refLow"
+                    defaultMinutes={biomarker.refLow != null ? Number(biomarker.refLow) : null}
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <Label>Reference high</Label>
+                  <DurationRangeFields
+                    idPrefix="refHigh"
+                    defaultMinutes={biomarker.refHigh != null ? Number(biomarker.refHigh) : null}
+                  />
+                </div>
               </div>
-              <div className="grid gap-2">
-                <Label htmlFor="edit-refHigh">
-                  Reference high{valueType === "duration" ? " (minutes)" : ""}
-                </Label>
-                <Input
-                  id="edit-refHigh"
-                  name="refHigh"
-                  type="number"
-                  step="any"
-                  defaultValue={biomarker.refHigh ?? ""}
-                />
+            ) : (
+              <div className="grid grid-cols-2 gap-4">
+                <div className="grid gap-2">
+                  <Label htmlFor="edit-refLow">Reference low</Label>
+                  <Input
+                    id="edit-refLow"
+                    name="refLow"
+                    type="number"
+                    step="any"
+                    defaultValue={biomarker.refLow ?? ""}
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="edit-refHigh">Reference high</Label>
+                  <Input
+                    id="edit-refHigh"
+                    name="refHigh"
+                    type="number"
+                    step="any"
+                    defaultValue={biomarker.refHigh ?? ""}
+                  />
+                </div>
               </div>
-            </div>
+            )}
           </div>
           <DialogFooter>
             <Button type="submit" disabled={isPending}>

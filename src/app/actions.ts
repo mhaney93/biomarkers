@@ -18,6 +18,19 @@ function resolveReadingValue(formData: FormData): string | null {
   return value || null;
 }
 
+function resolveRefValue(formData: FormData, prefix: "refLow" | "refHigh"): string | null {
+  const hoursRaw = formData.get(`${prefix}Hours`);
+  const minutesRaw = formData.get(`${prefix}Minutes`);
+  if (hoursRaw !== null || minutesRaw !== null) {
+    if (!hoursRaw && !minutesRaw) return null;
+    const hours = Number(hoursRaw || 0);
+    const minutes = Number(minutesRaw || 0);
+    return String(toTotalMinutes(hours, minutes));
+  }
+  const value = formData.get(prefix);
+  return value ? String(value) : null;
+}
+
 export async function unlock(_prevState: { error: string } | undefined, formData: FormData) {
   const password = String(formData.get("password") ?? "");
 
@@ -45,8 +58,8 @@ export async function createBiomarker(formData: FormData) {
   const valueType = String(formData.get("valueType") ?? "number").trim();
   const unit = valueType === "duration" ? null : String(formData.get("unit") ?? "").trim() || null;
   const category = String(formData.get("category") ?? "").trim() || null;
-  const refLow = formData.get("refLow") ? String(formData.get("refLow")) : null;
-  const refHigh = formData.get("refHigh") ? String(formData.get("refHigh")) : null;
+  const refLow = resolveRefValue(formData, "refLow");
+  const refHigh = resolveRefValue(formData, "refHigh");
 
   if (!name) throw new Error("Name is required");
 
@@ -62,8 +75,8 @@ export async function updateBiomarker(formData: FormData) {
   const valueType = String(formData.get("valueType") ?? "number").trim();
   const unit = valueType === "duration" ? null : String(formData.get("unit") ?? "").trim() || null;
   const category = String(formData.get("category") ?? "").trim() || null;
-  const refLow = formData.get("refLow") ? String(formData.get("refLow")) : null;
-  const refHigh = formData.get("refHigh") ? String(formData.get("refHigh")) : null;
+  const refLow = resolveRefValue(formData, "refLow");
+  const refHigh = resolveRefValue(formData, "refHigh");
 
   if (!id || !name) throw new Error("Name is required");
 

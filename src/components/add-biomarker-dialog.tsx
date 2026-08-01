@@ -20,6 +20,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { createBiomarker } from "@/app/actions";
+import { DurationRangeFields } from "@/components/duration-range-fields";
 import { Plus } from "lucide-react";
 import { toast } from "sonner";
 
@@ -82,20 +83,29 @@ export function AddBiomarkerDialog() {
               <Label htmlFor="category">Category (optional)</Label>
               <Input id="category" name="category" placeholder="e.g. Lipid Panel" />
             </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="grid gap-2">
-                <Label htmlFor="refLow">
-                  Reference low{valueType === "duration" ? " (minutes)" : ""}
-                </Label>
-                <Input id="refLow" name="refLow" type="number" step="any" />
+            {valueType === "duration" ? (
+              <div className="grid gap-4">
+                <div className="grid gap-2">
+                  <Label>Reference low</Label>
+                  <DurationRangeFields idPrefix="refLow" />
+                </div>
+                <div className="grid gap-2">
+                  <Label>Reference high</Label>
+                  <DurationRangeFields idPrefix="refHigh" />
+                </div>
               </div>
-              <div className="grid gap-2">
-                <Label htmlFor="refHigh">
-                  Reference high{valueType === "duration" ? " (minutes)" : ""}
-                </Label>
-                <Input id="refHigh" name="refHigh" type="number" step="any" />
+            ) : (
+              <div className="grid grid-cols-2 gap-4">
+                <div className="grid gap-2">
+                  <Label htmlFor="refLow">Reference low</Label>
+                  <Input id="refLow" name="refLow" type="number" step="any" />
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="refHigh">Reference high</Label>
+                  <Input id="refHigh" name="refHigh" type="number" step="any" />
+                </div>
               </div>
-            </div>
+            )}
           </div>
           <DialogFooter>
             <Button type="submit" disabled={isPending}>
