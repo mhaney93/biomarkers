@@ -18,6 +18,24 @@ export async function createBiomarker(formData: FormData) {
   revalidatePath("/");
 }
 
+export async function updateBiomarker(formData: FormData) {
+  const id = String(formData.get("id") ?? "");
+  const name = String(formData.get("name") ?? "").trim();
+  const unit = String(formData.get("unit") ?? "").trim();
+  const category = String(formData.get("category") ?? "").trim() || null;
+  const refLow = formData.get("refLow") ? String(formData.get("refLow")) : null;
+  const refHigh = formData.get("refHigh") ? String(formData.get("refHigh")) : null;
+
+  if (!id || !name || !unit) throw new Error("Name and unit are required");
+
+  await getDb()
+    .update(biomarkers)
+    .set({ name, unit, category, refLow, refHigh })
+    .where(eq(biomarkers.id, id));
+  revalidatePath("/");
+  revalidatePath(`/biomarkers/${id}`);
+}
+
 export async function deleteBiomarker(id: string) {
   await getDb().delete(biomarkers).where(eq(biomarkers.id, id));
   revalidatePath("/");

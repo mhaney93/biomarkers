@@ -16,6 +16,7 @@ import {
 } from "@/components/ui/table";
 import { TrendChart } from "@/components/trend-chart";
 import { AddReadingDialog } from "@/components/add-reading-dialog";
+import { EditBiomarkerDialog } from "@/components/edit-biomarker-dialog";
 import { DeleteBiomarkerButton } from "@/components/delete-biomarker-button";
 import { DeleteReadingButton } from "@/components/delete-reading-button";
 import { getStatus, statusLabels, statusStyles } from "@/lib/status";
@@ -88,6 +89,7 @@ export default async function BiomarkerPage({
             biomarkerName={biomarker.name}
             unit={biomarker.unit}
           />
+          <EditBiomarkerDialog biomarker={biomarker} />
           <DeleteBiomarkerButton id={biomarker.id} name={biomarker.name} />
         </div>
       </div>
