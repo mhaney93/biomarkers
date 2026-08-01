@@ -85,10 +85,10 @@ export default async function BiomarkerPage({
       </Link>
 
       <div className="mb-6 flex items-start justify-between gap-4">
-        <div>
-          <div className="flex items-center gap-2">
+        <div className="min-w-0">
+          <div className="flex flex-wrap items-center gap-2">
             <h1 className="text-2xl font-semibold tracking-tight">{biomarker.name}</h1>
-            <Badge variant="outline" className={statusStyles[latestStatus]}>
+            <Badge variant="outline" className={`shrink-0 ${statusStyles[latestStatus]}`}>
               {statusLabels[latestStatus]}
             </Badge>
           </div>

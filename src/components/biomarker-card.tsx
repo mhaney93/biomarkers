@@ -16,13 +16,13 @@ export function BiomarkerCard({ b, showCategory = true }: { b: BiomarkerWithLate
     <Link href={`/biomarkers/${b.id}`}>
       <Card className="h-full transition-colors hover:border-foreground/20">
         <CardHeader className="flex flex-row items-start justify-between gap-2 space-y-0">
-          <div>
+          <div className="min-w-0">
             <p className="font-medium leading-tight">{b.name}</p>
             {showCategory && b.category && (
               <p className="text-xs text-muted-foreground">{b.category}</p>
             )}
           </div>
-          <Badge variant="outline" className={statusStyles[status]}>
+          <Badge variant="outline" className={`shrink-0 ${statusStyles[status]}`}>
             {statusLabels[status]}
           </Badge>
         </CardHeader>
