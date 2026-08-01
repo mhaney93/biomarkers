@@ -22,6 +22,7 @@ import { DeleteReadingButton } from "@/components/delete-reading-button";
 import { UnlockDialog } from "@/components/unlock-dialog";
 import { getStatus, statusLabels, statusStyles } from "@/lib/status";
 import { isAuthed } from "@/lib/auth";
+import { formatDuration } from "@/lib/duration";
 import { ArrowLeft } from "lucide-react";
 import { format } from "date-fns";
 
@@ -93,9 +94,15 @@ export default async function BiomarkerPage({
           </div>
           <p className="text-sm text-muted-foreground">
             {biomarker.category ? `${biomarker.category} · ` : ""}
-            {biomarker.unit ? `Unit: ${biomarker.unit}` : "No unit"}
+            {biomarker.valueType === "duration"
+              ? "Duration (h:m)"
+              : biomarker.unit
+                ? `Unit: ${biomarker.unit}`
+                : "No unit"}
             {refLow != null || refHigh != null
-              ? ` · Reference: ${refLow ?? "–"}–${refHigh ?? "–"}`
+              ? biomarker.valueType === "duration"
+                ? ` · Reference: ${refLow != null ? formatDuration(refLow) : "–"}–${refHigh != null ? formatDuration(refHigh) : "–"}`
+                : ` · Reference: ${refLow ?? "–"}–${refHigh ?? "–"}`
               : ""}
           </p>
         </div>
@@ -106,6 +113,7 @@ export default async function BiomarkerPage({
                 biomarkerId={biomarker.id}
                 biomarkerName={biomarker.name}
                 unit={biomarker.unit}
+                valueType={biomarker.valueType}
               />
               <EditBiomarkerDialog biomarker={biomarker} />
               <DeleteBiomarkerButton id={biomarker.id} name={biomarker.name} />
@@ -122,7 +130,13 @@ export default async function BiomarkerPage({
         </CardHeader>
         <CardContent>
           {chartData.length > 0 ? (
-            <TrendChart data={chartData} unit={biomarker.unit} refLow={refLow} refHigh={refHigh} />
+            <TrendChart
+              data={chartData}
+              unit={biomarker.unit}
+              valueType={biomarker.valueType}
+              refLow={refLow}
+              refHigh={refHigh}
+            />
           ) : (
             <p className="py-12 text-center text-sm text-muted-foreground">
               No readings yet — add one to see the trend.
@@ -159,8 +173,14 @@ export default async function BiomarkerPage({
                         {format(new Date(r.takenAt), "MMM d, yyyy")}
                       </TableCell>
                       <TableCell className="tabular-nums">
-                        {value}
-                        {biomarker.unit ? ` ${biomarker.unit}` : ""}
+                        {biomarker.valueType === "duration" ? (
+                          formatDuration(value)
+                        ) : (
+                          <>
+                            {value}
+                            {biomarker.unit ? ` ${biomarker.unit}` : ""}
+                          </>
+                        )}
                       </TableCell>
                       <TableCell>
                         <Badge variant="outline" className={statusStyles[status]}>
@@ -177,6 +197,7 @@ export default async function BiomarkerPage({
                               reading={r}
                               biomarkerName={biomarker.name}
                               unit={biomarker.unit}
+                              valueType={biomarker.valueType}
                             />
                             <DeleteReadingButton id={r.id} biomarkerId={biomarker.id} />
                           </div>

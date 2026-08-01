@@ -4,6 +4,7 @@ export const biomarkers = pgTable("biomarkers", {
   id: uuid("id").primaryKey().defaultRandom(),
   name: text("name").notNull().unique(),
   unit: text("unit"),
+  valueType: text("value_type").notNull().default("number"),
   category: text("category"),
   refLow: numeric("ref_low"),
   refHigh: numeric("ref_high"),

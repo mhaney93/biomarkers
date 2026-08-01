@@ -12,6 +12,13 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { updateBiomarker } from "@/app/actions";
 import { Pencil } from "lucide-react";
 import { toast } from "sonner";
@@ -20,6 +27,7 @@ type Biomarker = {
   id: string;
   name: string;
   unit: string | null;
+  valueType: string;
   category: string | null;
   refLow: string | null;
   refHigh: string | null;
@@ -28,6 +36,9 @@ type Biomarker = {
 export function EditBiomarkerDialog({ biomarker }: { biomarker: Biomarker }) {
   const [open, setOpen] = useState(false);
   const [isPending, startTransition] = useTransition();
+  const [valueType, setValueType] = useState<"number" | "duration">(
+    biomarker.valueType === "duration" ? "duration" : "number"
+  );
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
@@ -51,6 +62,7 @@ export function EditBiomarkerDialog({ biomarker }: { biomarker: Biomarker }) {
           }}
         >
           <input type="hidden" name="id" value={biomarker.id} />
+          <input type="hidden" name="valueType" value={valueType} />
           <DialogHeader>
             <DialogTitle>Edit biomarker</DialogTitle>
           </DialogHeader>
@@ -60,16 +72,32 @@ export function EditBiomarkerDialog({ biomarker }: { biomarker: Biomarker }) {
               <Input id="edit-name" name="name" defaultValue={biomarker.name} required />
             </div>
             <div className="grid gap-2">
-              <Label htmlFor="edit-unit">Unit (optional)</Label>
-              <Input id="edit-unit" name="unit" defaultValue={biomarker.unit ?? ""} />
+              <Label htmlFor="edit-valueType-select">Value type</Label>
+              <Select value={valueType} onValueChange={(v) => setValueType(v as "number" | "duration")}>
+                <SelectTrigger id="edit-valueType-select">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="number">Number</SelectItem>
+                  <SelectItem value="duration">Duration (h:m)</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
+            {valueType === "number" && (
+              <div className="grid gap-2">
+                <Label htmlFor="edit-unit">Unit (optional)</Label>
+                <Input id="edit-unit" name="unit" defaultValue={biomarker.unit ?? ""} />
+              </div>
+            )}
             <div className="grid gap-2">
               <Label htmlFor="edit-category">Category (optional)</Label>
               <Input id="edit-category" name="category" defaultValue={biomarker.category ?? ""} />
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div className="grid gap-2">
-                <Label htmlFor="edit-refLow">Reference low</Label>
+                <Label htmlFor="edit-refLow">
+                  Reference low{valueType === "duration" ? " (minutes)" : ""}
+                </Label>
                 <Input
                   id="edit-refLow"
                   name="refLow"
@@ -79,7 +107,9 @@ export function EditBiomarkerDialog({ biomarker }: { biomarker: Biomarker }) {
                 />
               </div>
               <div className="grid gap-2">
-                <Label htmlFor="edit-refHigh">Reference high</Label>
+                <Label htmlFor="edit-refHigh">
+                  Reference high{valueType === "duration" ? " (minutes)" : ""}
+                </Label>
                 <Input
                   id="edit-refHigh"
                   name="refHigh"

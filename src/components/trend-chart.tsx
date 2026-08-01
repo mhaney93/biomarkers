@@ -11,20 +11,24 @@ import {
   CartesianGrid,
 } from "recharts";
 import { format } from "date-fns";
+import { formatDuration } from "@/lib/duration";
 
 type Point = { takenAt: string; value: number };
 
 export function TrendChart({
   data,
   unit,
+  valueType = "number",
   refLow,
   refHigh,
 }: {
   data: Point[];
   unit: string | null;
+  valueType?: string;
   refLow: number | null;
   refHigh: number | null;
 }) {
+  const isDuration = valueType === "duration";
   const chartData = data.map((d) => ({
     ...d,
     label: format(new Date(d.takenAt), "MMM d, yyyy"),
@@ -51,7 +55,8 @@ export function TrendChart({
             tickLine={false}
             width={44}
             domain={["auto", "auto"]}
-            unit={unit ? ` ${unit}` : undefined}
+            unit={!isDuration && unit ? ` ${unit}` : undefined}
+            tickFormatter={isDuration ? (v: number) => formatDuration(v) : undefined}
           />
           <Tooltip
             contentStyle={{
@@ -62,7 +67,10 @@ export function TrendChart({
               color: "var(--popover-foreground)",
             }}
             labelStyle={{ color: "var(--muted-foreground)" }}
-            formatter={(value) => [unit ? `${value} ${unit}` : `${value}`, "Value"]}
+            formatter={(value) => [
+              isDuration ? formatDuration(Number(value)) : unit ? `${value} ${unit}` : `${value}`,
+              "Value",
+            ]}
           />
           <Line
             type="monotone"

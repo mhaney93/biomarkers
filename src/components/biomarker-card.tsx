@@ -2,6 +2,7 @@ import Link from "next/link";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { getStatus, statusLabels, statusStyles } from "@/lib/status";
+import { formatDuration } from "@/lib/duration";
 import { format } from "date-fns";
 import type { BiomarkerWithLatest } from "@/lib/biomarkers";
 
@@ -29,8 +30,14 @@ export function BiomarkerCard({ b, showCategory = true }: { b: BiomarkerWithLate
           {b.latest ? (
             <>
               <p className="text-2xl font-semibold tabular-nums">
-                {value}
-                {b.unit && <span className="text-sm font-normal text-muted-foreground"> {b.unit}</span>}
+                {b.valueType === "duration" && value != null ? (
+                  formatDuration(value)
+                ) : (
+                  <>
+                    {value}
+                    {b.unit && <span className="text-sm font-normal text-muted-foreground"> {b.unit}</span>}
+                  </>
+                )}
               </p>
               <p className="text-xs text-muted-foreground">
                 {format(new Date(b.latest.takenAt), "MMM d, yyyy")} · {b.count} reading

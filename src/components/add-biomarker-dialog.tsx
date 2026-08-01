@@ -12,6 +12,13 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { createBiomarker } from "@/app/actions";
 import { Plus } from "lucide-react";
 import { toast } from "sonner";
@@ -19,6 +26,7 @@ import { toast } from "sonner";
 export function AddBiomarkerDialog() {
   const [open, setOpen] = useState(false);
   const [isPending, startTransition] = useTransition();
+  const [valueType, setValueType] = useState<"number" | "duration">("number");
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
@@ -36,12 +44,14 @@ export function AddBiomarkerDialog() {
                 await createBiomarker(formData);
                 toast.success("Biomarker added");
                 setOpen(false);
+                setValueType("number");
               } catch (e) {
                 toast.error(e instanceof Error ? e.message : "Failed to add biomarker");
               }
             });
           }}
         >
+          <input type="hidden" name="valueType" value={valueType} />
           <DialogHeader>
             <DialogTitle>Add biomarker</DialogTitle>
           </DialogHeader>
@@ -51,20 +61,38 @@ export function AddBiomarkerDialog() {
               <Input id="name" name="name" placeholder="e.g. LDL Cholesterol" required />
             </div>
             <div className="grid gap-2">
-              <Label htmlFor="unit">Unit (optional)</Label>
-              <Input id="unit" name="unit" placeholder="e.g. mg/dL — leave blank for a plain count" />
+              <Label htmlFor="valueType-select">Value type</Label>
+              <Select value={valueType} onValueChange={(v) => setValueType(v as "number" | "duration")}>
+                <SelectTrigger id="valueType-select">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="number">Number</SelectItem>
+                  <SelectItem value="duration">Duration (h:m)</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
+            {valueType === "number" && (
+              <div className="grid gap-2">
+                <Label htmlFor="unit">Unit (optional)</Label>
+                <Input id="unit" name="unit" placeholder="e.g. mg/dL — leave blank for a plain count" />
+              </div>
+            )}
             <div className="grid gap-2">
               <Label htmlFor="category">Category (optional)</Label>
               <Input id="category" name="category" placeholder="e.g. Lipid Panel" />
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div className="grid gap-2">
-                <Label htmlFor="refLow">Reference low</Label>
+                <Label htmlFor="refLow">
+                  Reference low{valueType === "duration" ? " (minutes)" : ""}
+                </Label>
                 <Input id="refLow" name="refLow" type="number" step="any" />
               </div>
               <div className="grid gap-2">
-                <Label htmlFor="refHigh">Reference high</Label>
+                <Label htmlFor="refHigh">
+                  Reference high{valueType === "duration" ? " (minutes)" : ""}
+                </Label>
                 <Input id="refHigh" name="refHigh" type="number" step="any" />
               </div>
             </div>

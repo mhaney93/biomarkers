@@ -6,6 +6,17 @@ import { and, eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { cookies } from "next/headers";
 import { AUTH_COOKIE, getAuthToken, getExpectedToken, requireAuth } from "@/lib/auth";
+import { toTotalMinutes } from "@/lib/duration";
+
+function resolveReadingValue(formData: FormData): string | null {
+  if (formData.has("hours") || formData.has("minutes")) {
+    const hours = Number(formData.get("hours") ?? 0);
+    const minutes = Number(formData.get("minutes") ?? 0);
+    return String(toTotalMinutes(hours, minutes));
+  }
+  const value = String(formData.get("value") ?? "");
+  return value || null;
+}
 
 export async function unlock(_prevState: { error: string } | undefined, formData: FormData) {
   const password = String(formData.get("password") ?? "");
@@ -31,14 +42,15 @@ export async function createBiomarker(formData: FormData) {
   await requireAuth();
 
   const name = String(formData.get("name") ?? "").trim();
-  const unit = String(formData.get("unit") ?? "").trim() || null;
+  const valueType = String(formData.get("valueType") ?? "number").trim();
+  const unit = valueType === "duration" ? null : String(formData.get("unit") ?? "").trim() || null;
   const category = String(formData.get("category") ?? "").trim() || null;
   const refLow = formData.get("refLow") ? String(formData.get("refLow")) : null;
   const refHigh = formData.get("refHigh") ? String(formData.get("refHigh")) : null;
 
   if (!name) throw new Error("Name is required");
 
-  await getDb().insert(biomarkers).values({ name, unit, category, refLow, refHigh });
+  await getDb().insert(biomarkers).values({ name, unit, valueType, category, refLow, refHigh });
   revalidatePath("/");
 }
 
@@ -47,7 +59,8 @@ export async function updateBiomarker(formData: FormData) {
 
   const id = String(formData.get("id") ?? "");
   const name = String(formData.get("name") ?? "").trim();
-  const unit = String(formData.get("unit") ?? "").trim() || null;
+  const valueType = String(formData.get("valueType") ?? "number").trim();
+  const unit = valueType === "duration" ? null : String(formData.get("unit") ?? "").trim() || null;
   const category = String(formData.get("category") ?? "").trim() || null;
   const refLow = formData.get("refLow") ? String(formData.get("refLow")) : null;
   const refHigh = formData.get("refHigh") ? String(formData.get("refHigh")) : null;
@@ -56,7 +69,7 @@ export async function updateBiomarker(formData: FormData) {
 
   await getDb()
     .update(biomarkers)
-    .set({ name, unit, category, refLow, refHigh })
+    .set({ name, unit, valueType, category, refLow, refHigh })
     .where(eq(biomarkers.id, id));
   revalidatePath("/");
   revalidatePath(`/biomarkers/${id}`);
@@ -73,11 +86,11 @@ export async function addReading(formData: FormData) {
   await requireAuth();
 
   const biomarkerId = String(formData.get("biomarkerId") ?? "");
-  const value = String(formData.get("value") ?? "");
+  const value = resolveReadingValue(formData);
   const takenAt = String(formData.get("takenAt") ?? "");
   const notes = String(formData.get("notes") ?? "").trim() || null;
 
-  if (!biomarkerId || !value || !takenAt) throw new Error("Missing required fields");
+  if (!biomarkerId || value == null || !takenAt) throw new Error("Missing required fields");
 
   await getDb().insert(readings).values({ biomarkerId, value, takenAt, notes });
   revalidatePath("/");
@@ -89,11 +102,11 @@ export async function updateReading(formData: FormData) {
 
   const id = String(formData.get("id") ?? "");
   const biomarkerId = String(formData.get("biomarkerId") ?? "");
-  const value = String(formData.get("value") ?? "");
+  const value = resolveReadingValue(formData);
   const takenAt = String(formData.get("takenAt") ?? "");
   const notes = String(formData.get("notes") ?? "").trim() || null;
 
-  if (!id || !biomarkerId || !value || !takenAt) throw new Error("Missing required fields");
+  if (!id || !biomarkerId || value == null || !takenAt) throw new Error("Missing required fields");
 
   await getDb().update(readings).set({ value, takenAt, notes }).where(eq(readings.id, id));
   revalidatePath("/");

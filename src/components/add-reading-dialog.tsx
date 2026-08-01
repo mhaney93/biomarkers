@@ -21,11 +21,13 @@ export function AddReadingDialog({
   biomarkerId,
   biomarkerName,
   unit,
+  valueType = "number",
   trigger,
 }: {
   biomarkerId: string;
   biomarkerName: string;
   unit: string | null;
+  valueType?: string;
   trigger?: React.ReactNode;
 }) {
   const [open, setOpen] = useState(false);
@@ -61,10 +63,23 @@ export function AddReadingDialog({
             <DialogTitle>Add reading — {biomarkerName}</DialogTitle>
           </DialogHeader>
           <div className="grid gap-4 py-4">
-            <div className="grid gap-2">
-              <Label htmlFor="value">Value{unit ? ` (${unit})` : ""}</Label>
-              <Input id="value" name="value" type="number" step="any" required autoFocus />
-            </div>
+            {valueType === "duration" ? (
+              <div className="grid grid-cols-2 gap-4">
+                <div className="grid gap-2">
+                  <Label htmlFor="hours">Hours</Label>
+                  <Input id="hours" name="hours" type="number" step="1" min="0" defaultValue="0" required autoFocus />
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="minutes">Minutes</Label>
+                  <Input id="minutes" name="minutes" type="number" step="1" min="0" max="59" defaultValue="0" required />
+                </div>
+              </div>
+            ) : (
+              <div className="grid gap-2">
+                <Label htmlFor="value">Value{unit ? ` (${unit})` : ""}</Label>
+                <Input id="value" name="value" type="number" step="any" required autoFocus />
+              </div>
+            )}
             <div className="grid gap-2">
               <Label htmlFor="takenAt">Date</Label>
               <Input id="takenAt" name="takenAt" type="date" defaultValue={today} required />
