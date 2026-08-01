@@ -19,7 +19,7 @@ import { toast } from "sonner";
 type Biomarker = {
   id: string;
   name: string;
-  unit: string;
+  unit: string | null;
   category: string | null;
   refLow: string | null;
   refHigh: string | null;
@@ -60,8 +60,8 @@ export function EditBiomarkerDialog({ biomarker }: { biomarker: Biomarker }) {
               <Input id="edit-name" name="name" defaultValue={biomarker.name} required />
             </div>
             <div className="grid gap-2">
-              <Label htmlFor="edit-unit">Unit</Label>
-              <Input id="edit-unit" name="unit" defaultValue={biomarker.unit} required />
+              <Label htmlFor="edit-unit">Unit (optional)</Label>
+              <Input id="edit-unit" name="unit" defaultValue={biomarker.unit ?? ""} />
             </div>
             <div className="grid gap-2">
               <Label htmlFor="edit-category">Category (optional)</Label>

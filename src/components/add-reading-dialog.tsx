@@ -25,7 +25,7 @@ export function AddReadingDialog({
 }: {
   biomarkerId: string;
   biomarkerName: string;
-  unit: string;
+  unit: string | null;
   trigger?: React.ReactNode;
 }) {
   const [open, setOpen] = useState(false);
@@ -62,7 +62,7 @@ export function AddReadingDialog({
           </DialogHeader>
           <div className="grid gap-4 py-4">
             <div className="grid gap-2">
-              <Label htmlFor="value">Value ({unit})</Label>
+              <Label htmlFor="value">Value{unit ? ` (${unit})` : ""}</Label>
               <Input id="value" name="value" type="number" step="any" required autoFocus />
             </div>
             <div className="grid gap-2">

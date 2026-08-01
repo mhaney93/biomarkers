@@ -7,12 +7,12 @@ import { revalidatePath } from "next/cache";
 
 export async function createBiomarker(formData: FormData) {
   const name = String(formData.get("name") ?? "").trim();
-  const unit = String(formData.get("unit") ?? "").trim();
+  const unit = String(formData.get("unit") ?? "").trim() || null;
   const category = String(formData.get("category") ?? "").trim() || null;
   const refLow = formData.get("refLow") ? String(formData.get("refLow")) : null;
   const refHigh = formData.get("refHigh") ? String(formData.get("refHigh")) : null;
 
-  if (!name || !unit) throw new Error("Name and unit are required");
+  if (!name) throw new Error("Name is required");
 
   await getDb().insert(biomarkers).values({ name, unit, category, refLow, refHigh });
   revalidatePath("/");
@@ -21,12 +21,12 @@ export async function createBiomarker(formData: FormData) {
 export async function updateBiomarker(formData: FormData) {
   const id = String(formData.get("id") ?? "");
   const name = String(formData.get("name") ?? "").trim();
-  const unit = String(formData.get("unit") ?? "").trim();
+  const unit = String(formData.get("unit") ?? "").trim() || null;
   const category = String(formData.get("category") ?? "").trim() || null;
   const refLow = formData.get("refLow") ? String(formData.get("refLow")) : null;
   const refHigh = formData.get("refHigh") ? String(formData.get("refHigh")) : null;
 
-  if (!id || !name || !unit) throw new Error("Name and unit are required");
+  if (!id || !name) throw new Error("Name is required");
 
   await getDb()
     .update(biomarkers)

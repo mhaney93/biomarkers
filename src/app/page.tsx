@@ -40,12 +40,7 @@ export default async function Home() {
   return (
     <div className="mx-auto max-w-5xl px-6 py-10">
       <div className="mb-8 flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Biomarkers</h1>
-          <p className="text-sm text-muted-foreground">
-            Track your lab results and health metrics over time.
-          </p>
-        </div>
+        <h1 className="text-2xl font-semibold tracking-tight">Biomarkers</h1>
         <AddBiomarkerDialog />
       </div>
 
@@ -88,7 +83,10 @@ export default async function Home() {
                     {b.latest ? (
                       <>
                         <p className="text-2xl font-semibold tabular-nums">
-                          {value} <span className="text-sm font-normal text-muted-foreground">{b.unit}</span>
+                          {value}
+                          {b.unit && (
+                            <span className="text-sm font-normal text-muted-foreground"> {b.unit}</span>
+                          )}
                         </p>
                         <p className="text-xs text-muted-foreground">
                           {format(new Date(b.latest.takenAt), "MMM d, yyyy")} · {b.count}{" "}

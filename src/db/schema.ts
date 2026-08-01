@@ -3,7 +3,7 @@ import { pgTable, uuid, text, numeric, date, timestamp, index } from "drizzle-or
 export const biomarkers = pgTable("biomarkers", {
   id: uuid("id").primaryKey().defaultRandom(),
   name: text("name").notNull().unique(),
-  unit: text("unit").notNull(),
+  unit: text("unit"),
   category: text("category"),
   refLow: numeric("ref_low"),
   refHigh: numeric("ref_high"),

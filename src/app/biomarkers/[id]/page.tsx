@@ -77,7 +77,7 @@ export default async function BiomarkerPage({
           </div>
           <p className="text-sm text-muted-foreground">
             {biomarker.category ? `${biomarker.category} · ` : ""}
-            Unit: {biomarker.unit}
+            {biomarker.unit ? `Unit: ${biomarker.unit}` : "No unit"}
             {refLow != null || refHigh != null
               ? ` · Reference: ${refLow ?? "–"}–${refHigh ?? "–"}`
               : ""}
@@ -137,7 +137,8 @@ export default async function BiomarkerPage({
                         {format(new Date(r.takenAt), "MMM d, yyyy")}
                       </TableCell>
                       <TableCell className="tabular-nums">
-                        {value} {biomarker.unit}
+                        {value}
+                        {biomarker.unit ? ` ${biomarker.unit}` : ""}
                       </TableCell>
                       <TableCell>
                         <Badge variant="outline" className={statusStyles[status]}>

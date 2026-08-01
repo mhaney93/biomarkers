@@ -51,8 +51,8 @@ export function AddBiomarkerDialog() {
               <Input id="name" name="name" placeholder="e.g. LDL Cholesterol" required />
             </div>
             <div className="grid gap-2">
-              <Label htmlFor="unit">Unit</Label>
-              <Input id="unit" name="unit" placeholder="e.g. mg/dL" required />
+              <Label htmlFor="unit">Unit (optional)</Label>
+              <Input id="unit" name="unit" placeholder="e.g. mg/dL — leave blank for a plain count" />
             </div>
             <div className="grid gap-2">
               <Label htmlFor="category">Category (optional)</Label>

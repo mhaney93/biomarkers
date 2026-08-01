@@ -21,7 +21,7 @@ export function TrendChart({
   refHigh,
 }: {
   data: Point[];
-  unit: string;
+  unit: string | null;
   refLow: number | null;
   refHigh: number | null;
 }) {
@@ -51,7 +51,7 @@ export function TrendChart({
             tickLine={false}
             width={44}
             domain={["auto", "auto"]}
-            unit={` ${unit}`}
+            unit={unit ? ` ${unit}` : undefined}
           />
           <Tooltip
             contentStyle={{
@@ -62,7 +62,7 @@ export function TrendChart({
               color: "var(--popover-foreground)",
             }}
             labelStyle={{ color: "var(--muted-foreground)" }}
-            formatter={(value) => [`${value} ${unit}`, "Value"]}
+            formatter={(value) => [unit ? `${value} ${unit}` : `${value}`, "Value"]}
           />
           <Line
             type="monotone"
