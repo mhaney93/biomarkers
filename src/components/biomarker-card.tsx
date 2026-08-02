@@ -17,7 +17,7 @@ export function BiomarkerCard({ b, showCategory = true }: { b: BiomarkerWithLate
     <Link href={`/biomarkers/${b.id}`}>
       <Card className="h-full transition-colors hover:border-foreground/20">
         <CardHeader className="flex flex-col items-start gap-2 space-y-0">
-          <p className="font-medium leading-tight">{b.name}</p>
+          <p className="w-full break-words font-medium leading-tight">{b.name}</p>
           <div className="flex w-full items-center justify-between gap-2">
             {showCategory && b.category ? (
               <p className="min-w-0 truncate text-xs text-muted-foreground">{b.category}</p>
