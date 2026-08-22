@@ -62,13 +62,14 @@ export async function createBiomarker(formData: FormData) {
   const valueType = String(formData.get("valueType") ?? "number").trim();
   const hasRange = valueType !== "text";
   const unit = valueType === "number" ? String(formData.get("unit") ?? "").trim() || null : null;
+  const group = String(formData.get("group") ?? "").trim() || null;
   const category = String(formData.get("category") ?? "").trim() || null;
   const refLow = hasRange ? resolveRefValue(formData, "refLow") : null;
   const refHigh = hasRange ? resolveRefValue(formData, "refHigh") : null;
 
   if (!name) throw new Error("Name is required");
 
-  await getDb().insert(biomarkers).values({ name, unit, valueType, category, refLow, refHigh });
+  await getDb().insert(biomarkers).values({ name, unit, valueType, group, category, refLow, refHigh });
   revalidatePath("/");
 }
 
@@ -80,6 +81,7 @@ export async function updateBiomarker(formData: FormData) {
   const valueType = String(formData.get("valueType") ?? "number").trim();
   const hasRange = valueType !== "text";
   const unit = valueType === "number" ? String(formData.get("unit") ?? "").trim() || null : null;
+  const group = String(formData.get("group") ?? "").trim() || null;
   const category = String(formData.get("category") ?? "").trim() || null;
   const refLow = hasRange ? resolveRefValue(formData, "refLow") : null;
   const refHigh = hasRange ? resolveRefValue(formData, "refHigh") : null;
@@ -88,7 +90,7 @@ export async function updateBiomarker(formData: FormData) {
 
   await getDb()
     .update(biomarkers)
-    .set({ name, unit, valueType, category, refLow, refHigh })
+    .set({ name, unit, valueType, group, category, refLow, refHigh })
     .where(eq(biomarkers.id, id));
   revalidatePath("/");
   revalidatePath(`/biomarkers/${id}`);

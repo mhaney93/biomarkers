@@ -29,6 +29,7 @@ type Biomarker = {
   name: string;
   unit: string | null;
   valueType: string;
+  group: string | null;
   category: string | null;
   refLow: string | null;
   refHigh: string | null;
@@ -93,6 +94,10 @@ export function EditBiomarkerDialog({ biomarker }: { biomarker: Biomarker }) {
                 <Input id="edit-unit" name="unit" defaultValue={biomarker.unit ?? ""} />
               </div>
             )}
+            <div className="grid gap-2">
+              <Label htmlFor="edit-group">Group (optional)</Label>
+              <Input id="edit-group" name="group" defaultValue={biomarker.group ?? ""} />
+            </div>
             <div className="grid gap-2">
               <Label htmlFor="edit-category">Category (optional)</Label>
               <Input id="edit-category" name="category" defaultValue={biomarker.category ?? ""} />

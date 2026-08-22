@@ -57,3 +57,48 @@ export function groupByCategory(data: BiomarkerWithLatest[]) {
 
   return { categories, standalone };
 }
+
+export function groupHierarchy(data: BiomarkerWithLatest[]) {
+  const byGroup = new Map<string, BiomarkerWithLatest[]>();
+  const ungrouped: BiomarkerWithLatest[] = [];
+
+  for (const b of data) {
+    if (!b.group) {
+      ungrouped.push(b);
+      continue;
+    }
+    const list = byGroup.get(b.group) ?? [];
+    list.push(b);
+    byGroup.set(b.group, list);
+  }
+
+  const groups = [...byGroup.entries()]
+    .map(([group, items]) => ({ group, items }))
+    .sort((a, b) => a.group.localeCompare(b.group));
+
+  const { categories, standalone } = groupByCategory(ungrouped);
+
+  return { groups, categories, standalone };
+}
+
+export function groupItemsByCategory(items: BiomarkerWithLatest[]) {
+  const byCategory = new Map<string, BiomarkerWithLatest[]>();
+  const uncategorized: BiomarkerWithLatest[] = [];
+
+  for (const b of items) {
+    if (!b.category) {
+      uncategorized.push(b);
+      continue;
+    }
+    const list = byCategory.get(b.category) ?? [];
+    list.push(b);
+    byCategory.set(b.category, list);
+  }
+
+  const categories = [...byCategory.entries()]
+    .map(([category, items]) => ({ category, items }))
+    .sort((a, b) => a.category.localeCompare(b.category));
+  const standalone = uncategorized.sort((a, b) => a.name.localeCompare(b.name));
+
+  return { categories, standalone };
+}

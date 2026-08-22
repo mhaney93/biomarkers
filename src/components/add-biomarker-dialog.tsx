@@ -24,7 +24,10 @@ import { DurationRangeFields } from "@/components/duration-range-fields";
 import { Plus } from "lucide-react";
 import { toast } from "sonner";
 
-export function AddBiomarkerDialog({ defaultCategory }: { defaultCategory?: string } = {}) {
+export function AddBiomarkerDialog({
+  defaultCategory,
+  defaultGroup,
+}: { defaultCategory?: string; defaultGroup?: string } = {}) {
   const [open, setOpen] = useState(false);
   const [isPending, startTransition] = useTransition();
   const [valueType, setValueType] = useState<"number" | "duration" | "text">("number");
@@ -80,6 +83,15 @@ export function AddBiomarkerDialog({ defaultCategory }: { defaultCategory?: stri
                 <Input id="unit" name="unit" placeholder="e.g. mg/dL — leave blank for a plain count" />
               </div>
             )}
+            <div className="grid gap-2">
+              <Label htmlFor="group">Group (optional)</Label>
+              <Input
+                id="group"
+                name="group"
+                placeholder="e.g. Baseline Test — groups multiple categories together"
+                defaultValue={defaultGroup ?? ""}
+              />
+            </div>
             <div className="grid gap-2">
               <Label htmlFor="category">Category (optional)</Label>
               <Input

@@ -44,7 +44,10 @@ export default async function BiomarkerPage({
 
   let backHref = "/";
   let backLabel = "All biomarkers";
-  if (biomarker.category) {
+  if (biomarker.group && biomarker.category) {
+    backHref = `/groups/${encodeURIComponent(biomarker.group)}/categories/${encodeURIComponent(biomarker.category)}`;
+    backLabel = biomarker.category;
+  } else if (biomarker.category) {
     const [{ count }] = await db
       .select({ count: sql<number>`count(*)::int` })
       .from(biomarkers)
@@ -103,6 +106,7 @@ export default async function BiomarkerPage({
             )}
           </div>
           <p className="text-sm text-muted-foreground">
+            {biomarker.group ? `${biomarker.group} · ` : ""}
             {biomarker.category ? `${biomarker.category} · ` : ""}
             {isText
               ? "Text"

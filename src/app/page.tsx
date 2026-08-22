@@ -3,7 +3,8 @@ import { AddBiomarkerDialog } from "@/components/add-biomarker-dialog";
 import { UnlockDialog } from "@/components/unlock-dialog";
 import { BiomarkerCard } from "@/components/biomarker-card";
 import { CategoryCard } from "@/components/category-card";
-import { getBiomarkersWithLatest, groupByCategory } from "@/lib/biomarkers";
+import { GroupCard } from "@/components/group-card";
+import { getBiomarkersWithLatest, groupHierarchy } from "@/lib/biomarkers";
 import { isAuthed } from "@/lib/auth";
 import { Activity } from "lucide-react";
 
@@ -11,7 +12,7 @@ export const dynamic = "force-dynamic";
 
 export default async function Home() {
   const [data, authed] = await Promise.all([getBiomarkersWithLatest(), isAuthed()]);
-  const { categories, standalone } = groupByCategory(data);
+  const { groups, categories, standalone } = groupHierarchy(data);
 
   return (
     <div className="mx-auto max-w-[100rem] px-6 py-10">
@@ -35,6 +36,9 @@ export default async function Home() {
         </Card>
       ) : (
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
+          {groups.map(({ group, items }) => (
+            <GroupCard key={group} group={group} items={items} />
+          ))}
           {categories.map(({ category, items }) => (
             <CategoryCard key={category} category={category} items={items} />
           ))}
