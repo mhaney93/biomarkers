@@ -76,6 +76,11 @@ export function getIssues(data: BiomarkerWithLatest[]) {
 
 export type Issue = ReturnType<typeof getIssues>[number];
 
+export function getMaxDeltaPercent(data: BiomarkerWithLatest[]): number {
+  const issues = getIssues(data);
+  return issues[0]?.percent ?? 0;
+}
+
 export function groupHierarchy(data: BiomarkerWithLatest[]) {
   const byGroup = new Map<string, BiomarkerWithLatest[]>();
   const ungrouped: BiomarkerWithLatest[] = [];

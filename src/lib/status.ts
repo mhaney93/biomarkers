@@ -1,3 +1,5 @@
+import type { CSSProperties } from "react";
+
 export type Status = "low" | "normal" | "high" | "no-range" | "no-reading";
 
 export function getStatus(
@@ -30,6 +32,30 @@ export function percentOutOfRange(
   if (status === "low" && refLow) return ((refLow - value) / refLow) * 100;
   if (status === "high" && refHigh) return ((value - refHigh) / refHigh) * 100;
   return null;
+}
+
+const SEVERITY_FROM = [0xed, 0xa1, 0x00] as const; // yellow, matches previous "low" color
+const SEVERITY_TO = [0xd0, 0x3b, 0x3b] as const; // red, matches previous "high" color
+
+export function severityStyle(percent: number, maxPercent: number): CSSProperties {
+  const t = maxPercent > 0 ? Math.min(Math.max(percent / maxPercent, 0), 1) : 0;
+  const [r, g, b] = SEVERITY_FROM.map((from, i) => Math.round(from + (SEVERITY_TO[i] - from) * t));
+  return {
+    backgroundColor: `rgba(${r}, ${g}, ${b}, 0.15)`,
+    color: `rgb(${r}, ${g}, ${b})`,
+    borderColor: `rgba(${r}, ${g}, ${b}, 0.3)`,
+  };
+}
+
+export function getBadgeProps(
+  status: Status,
+  percent: number | null,
+  maxPercent: number
+): { className: string; style?: CSSProperties } {
+  if ((status === "low" || status === "high") && percent != null) {
+    return { className: "", style: severityStyle(percent, maxPercent) };
+  }
+  return { className: statusStyles[status] };
 }
 
 export const statusLabels: Record<Status, string> = {

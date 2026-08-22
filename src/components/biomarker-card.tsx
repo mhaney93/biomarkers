@@ -1,17 +1,27 @@
 import Link from "next/link";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { getStatus, statusLabels, statusStyles } from "@/lib/status";
+import { getBadgeProps, getStatus, percentOutOfRange, statusLabels } from "@/lib/status";
 import { formatDuration } from "@/lib/duration";
 import { format } from "date-fns";
 import type { BiomarkerWithLatest } from "@/lib/biomarkers";
 
-export function BiomarkerCard({ b, showCategory = true }: { b: BiomarkerWithLatest; showCategory?: boolean }) {
+export function BiomarkerCard({
+  b,
+  showCategory = true,
+  maxPercent = 0,
+}: {
+  b: BiomarkerWithLatest;
+  showCategory?: boolean;
+  maxPercent?: number;
+}) {
   const isText = b.valueType === "text";
   const value = !isText && b.latest?.value != null ? Number(b.latest.value) : null;
   const refLow = b.refLow != null ? Number(b.refLow) : null;
   const refHigh = b.refHigh != null ? Number(b.refHigh) : null;
   const status = getStatus(value, refLow, refHigh);
+  const percent = percentOutOfRange(value, refLow, refHigh);
+  const badge = getBadgeProps(status, percent, maxPercent);
 
   return (
     <Link href={`/biomarkers/${b.id}`}>
@@ -25,7 +35,7 @@ export function BiomarkerCard({ b, showCategory = true }: { b: BiomarkerWithLate
               <span />
             )}
             {!isText && (
-              <Badge variant="outline" className={`shrink-0 ${statusStyles[status]}`}>
+              <Badge variant="outline" className={`shrink-0 ${badge.className}`} style={badge.style}>
                 {statusLabels[status]}
               </Badge>
             )}

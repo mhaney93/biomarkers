@@ -4,7 +4,7 @@ import { BiomarkerCard } from "@/components/biomarker-card";
 import { AddBiomarkerDialog } from "@/components/add-biomarker-dialog";
 import { RenameCategoryDialog } from "@/components/rename-category-dialog";
 import { UnlockDialog } from "@/components/unlock-dialog";
-import { getBiomarkersWithLatest } from "@/lib/biomarkers";
+import { getBiomarkersWithLatest, getMaxDeltaPercent } from "@/lib/biomarkers";
 import { isAuthed } from "@/lib/auth";
 import { ArrowLeft } from "lucide-react";
 
@@ -20,6 +20,7 @@ export default async function CategoryPage({
 
   const [data, authed] = await Promise.all([getBiomarkersWithLatest(), isAuthed()]);
   const items = data.filter((b) => b.category === category);
+  const maxPercent = getMaxDeltaPercent(data);
 
   if (items.length === 0) notFound();
 
@@ -43,7 +44,7 @@ export default async function CategoryPage({
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
         {items.map((b) => (
-          <BiomarkerCard key={b.id} b={b} showCategory={false} />
+          <BiomarkerCard key={b.id} b={b} showCategory={false} maxPercent={maxPercent} />
         ))}
       </div>
     </div>

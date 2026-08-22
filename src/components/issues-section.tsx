@@ -1,13 +1,16 @@
 import Link from "next/link";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { statusLabels, statusStyles } from "@/lib/status";
+import { getBadgeProps, statusLabels } from "@/lib/status";
 import { formatDuration } from "@/lib/duration";
 import { AlertTriangle } from "lucide-react";
+import { format } from "date-fns";
 import type { Issue } from "@/lib/biomarkers";
 
 export function IssuesSection({ issues }: { issues: Issue[] }) {
   if (issues.length === 0) return null;
+
+  const maxPercent = issues[0]?.percent ?? 0;
 
   return (
     <div className="mt-10">
@@ -55,10 +58,22 @@ export function IssuesSection({ issues }: { issues: Issue[] }) {
                         ? `${refLow != null ? formatDuration(refLow) : "–"}–${refHigh != null ? formatDuration(refHigh) : "–"}`
                         : `${refLow ?? "–"}–${refHigh ?? "–"}`}
                     </p>
+                    {b.latest && (
+                      <p className="text-xs text-muted-foreground">
+                        as of {format(new Date(b.latest.takenAt), "MMM d, yyyy")}
+                      </p>
+                    )}
                   </div>
-                  <Badge variant="outline" className={statusStyles[status]}>
-                    {percent != null ? `${Math.round(percent)}% ${statusLabels[status].toLowerCase()}` : statusLabels[status]}
-                  </Badge>
+                  {(() => {
+                    const badge = getBadgeProps(status, percent, maxPercent);
+                    return (
+                      <Badge variant="outline" className={badge.className} style={badge.style}>
+                        {percent != null
+                          ? `${Math.round(percent)}% ${statusLabels[status].toLowerCase()}`
+                          : statusLabels[status]}
+                      </Badge>
+                    );
+                  })()}
                 </div>
               </Link>
             ))}

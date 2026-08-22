@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import { BiomarkerCard } from "@/components/biomarker-card";
 import { CategoryCard } from "@/components/category-card";
 import { RenameGroupDialog } from "@/components/rename-group-dialog";
-import { getBiomarkersWithLatest, groupItemsByCategory } from "@/lib/biomarkers";
+import { getBiomarkersWithLatest, getMaxDeltaPercent, groupItemsByCategory } from "@/lib/biomarkers";
 import { isAuthed } from "@/lib/auth";
 import { ArrowLeft } from "lucide-react";
 
@@ -19,6 +19,7 @@ export default async function GroupPage({
 
   const [data, authed] = await Promise.all([getBiomarkersWithLatest(), isAuthed()]);
   const items = data.filter((b) => b.group === group);
+  const maxPercent = getMaxDeltaPercent(data);
 
   if (items.length === 0) notFound();
 
@@ -49,7 +50,7 @@ export default async function GroupPage({
           />
         ))}
         {standalone.map((b) => (
-          <BiomarkerCard key={b.id} b={b} />
+          <BiomarkerCard key={b.id} b={b} maxPercent={maxPercent} />
         ))}
       </div>
     </div>

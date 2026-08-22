@@ -5,7 +5,7 @@ import { BiomarkerCard } from "@/components/biomarker-card";
 import { CategoryCard } from "@/components/category-card";
 import { GroupCard } from "@/components/group-card";
 import { IssuesSection } from "@/components/issues-section";
-import { getBiomarkersWithLatest, getIssues, groupHierarchy } from "@/lib/biomarkers";
+import { getBiomarkersWithLatest, getIssues, getMaxDeltaPercent, groupHierarchy } from "@/lib/biomarkers";
 import { isAuthed } from "@/lib/auth";
 import { Activity } from "lucide-react";
 
@@ -15,6 +15,7 @@ export default async function Home() {
   const [data, authed] = await Promise.all([getBiomarkersWithLatest(), isAuthed()]);
   const { groups, categories, standalone } = groupHierarchy(data);
   const issues = getIssues(data);
+  const maxPercent = getMaxDeltaPercent(data);
 
   return (
     <div className="mx-auto max-w-[100rem] px-6 py-10">
@@ -45,7 +46,7 @@ export default async function Home() {
             <CategoryCard key={category} category={category} items={items} />
           ))}
           {standalone.map((b) => (
-            <BiomarkerCard key={b.id} b={b} />
+            <BiomarkerCard key={b.id} b={b} maxPercent={maxPercent} />
           ))}
         </div>
       )}

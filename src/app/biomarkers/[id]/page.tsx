@@ -20,7 +20,8 @@ import { DeleteBiomarkerButton } from "@/components/delete-biomarker-button";
 import { EditReadingDialog } from "@/components/edit-reading-dialog";
 import { DeleteReadingButton } from "@/components/delete-reading-button";
 import { UnlockDialog } from "@/components/unlock-dialog";
-import { getStatus, statusLabels, statusStyles } from "@/lib/status";
+import { getBadgeProps, getStatus, percentOutOfRange, statusLabels } from "@/lib/status";
+import { getBiomarkersWithLatest, getMaxDeltaPercent } from "@/lib/biomarkers";
 import { isAuthed } from "@/lib/auth";
 import { formatDuration } from "@/lib/duration";
 import { ArrowLeft } from "lucide-react";
@@ -35,7 +36,8 @@ export default async function BiomarkerPage({
 }) {
   const { id } = await params;
   const db = getDb();
-  const authed = await isAuthed();
+  const [authed, allBiomarkers] = await Promise.all([isAuthed(), getBiomarkersWithLatest()]);
+  const maxPercent = getMaxDeltaPercent(allBiomarkers);
 
   const [biomarker] = await db.select().from(biomarkers).where(eq(biomarkers.id, id));
   if (!biomarker) notFound();
@@ -75,11 +77,10 @@ export default async function BiomarkerPage({
       }));
 
   const latest = allReadings[allReadings.length - 1] ?? null;
-  const latestStatus = getStatus(
-    !isText && latest?.value != null ? Number(latest.value) : null,
-    refLow,
-    refHigh
-  );
+  const latestValue = !isText && latest?.value != null ? Number(latest.value) : null;
+  const latestStatus = getStatus(latestValue, refLow, refHigh);
+  const latestPercent = percentOutOfRange(latestValue, refLow, refHigh);
+  const latestBadge = getBadgeProps(latestStatus, latestPercent, maxPercent);
 
   const sortedDesc = [...allReadings].sort(
     (a, b) => new Date(b.takenAt).getTime() - new Date(a.takenAt).getTime()
@@ -100,7 +101,7 @@ export default async function BiomarkerPage({
           <div className="flex flex-wrap items-center gap-2">
             <h1 className="text-2xl font-semibold tracking-tight">{biomarker.name}</h1>
             {!isText && (
-              <Badge variant="outline" className={`shrink-0 ${statusStyles[latestStatus]}`}>
+              <Badge variant="outline" className={`shrink-0 ${latestBadge.className}`} style={latestBadge.style}>
                 {statusLabels[latestStatus]}
               </Badge>
             )}
@@ -185,6 +186,8 @@ export default async function BiomarkerPage({
                 {sortedDesc.map((r) => {
                   const value = !isText && r.value != null ? Number(r.value) : null;
                   const status = getStatus(value, refLow, refHigh);
+                  const percent = percentOutOfRange(value, refLow, refHigh);
+                  const badge = getBadgeProps(status, percent, maxPercent);
                   return (
                     <TableRow key={r.id}>
                       <TableCell className="whitespace-nowrap">
@@ -204,7 +207,7 @@ export default async function BiomarkerPage({
                       </TableCell>
                       {!isText && (
                         <TableCell>
-                          <Badge variant="outline" className={statusStyles[status]}>
+                          <Badge variant="outline" className={badge.className} style={badge.style}>
                             {statusLabels[status]}
                           </Badge>
                         </TableCell>
