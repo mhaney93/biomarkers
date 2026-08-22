@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { BiomarkerCard } from "@/components/biomarker-card";
 import { AddBiomarkerDialog } from "@/components/add-biomarker-dialog";
+import { RenameCategoryDialog } from "@/components/rename-category-dialog";
 import { UnlockDialog } from "@/components/unlock-dialog";
 import { getBiomarkersWithLatest } from "@/lib/biomarkers";
 import { isAuthed } from "@/lib/auth";
@@ -33,7 +34,10 @@ export default async function CategoryPage({
       </Link>
 
       <div className="mb-8 flex items-center justify-between">
-        <h1 className="text-2xl font-semibold tracking-tight">{category}</h1>
+        <div className="flex items-center gap-1">
+          <h1 className="text-2xl font-semibold tracking-tight">{category}</h1>
+          {authed && <RenameCategoryDialog category={category} />}
+        </div>
         {authed ? <AddBiomarkerDialog defaultCategory={category} /> : <UnlockDialog />}
       </div>
 

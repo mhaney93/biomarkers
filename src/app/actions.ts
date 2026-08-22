@@ -2,7 +2,7 @@
 
 import { getDb } from "@/db";
 import { biomarkers, readings } from "@/db/schema";
-import { and, eq } from "drizzle-orm";
+import { and, eq, isNull } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { cookies } from "next/headers";
 import { AUTH_COOKIE, getAuthToken, getExpectedToken, requireAuth } from "@/lib/auth";
@@ -94,6 +94,42 @@ export async function updateBiomarker(formData: FormData) {
     .where(eq(biomarkers.id, id));
   revalidatePath("/");
   revalidatePath(`/biomarkers/${id}`);
+}
+
+export async function renameCategory(formData: FormData) {
+  await requireAuth();
+
+  const group = String(formData.get("group") ?? "").trim() || null;
+  const oldCategory = String(formData.get("oldCategory") ?? "").trim();
+  const newCategory = String(formData.get("newCategory") ?? "").trim();
+
+  if (!oldCategory || !newCategory) throw new Error("Category name is required");
+
+  const db = getDb();
+  const condition = group
+    ? and(eq(biomarkers.category, oldCategory), eq(biomarkers.group, group))
+    : and(eq(biomarkers.category, oldCategory), isNull(biomarkers.group));
+
+  await db.update(biomarkers).set({ category: newCategory }).where(condition);
+  revalidatePath("/");
+  revalidatePath(`/categories/${encodeURIComponent(oldCategory)}`);
+  if (group) {
+    revalidatePath(`/groups/${encodeURIComponent(group)}`);
+    revalidatePath(`/groups/${encodeURIComponent(group)}/categories/${encodeURIComponent(oldCategory)}`);
+  }
+}
+
+export async function renameGroup(formData: FormData) {
+  await requireAuth();
+
+  const oldGroup = String(formData.get("oldGroup") ?? "").trim();
+  const newGroup = String(formData.get("newGroup") ?? "").trim();
+
+  if (!oldGroup || !newGroup) throw new Error("Group name is required");
+
+  await getDb().update(biomarkers).set({ group: newGroup }).where(eq(biomarkers.group, oldGroup));
+  revalidatePath("/");
+  revalidatePath(`/groups/${encodeURIComponent(oldGroup)}`);
 }
 
 export async function deleteBiomarker(id: string) {
