@@ -4,7 +4,8 @@ import { UnlockDialog } from "@/components/unlock-dialog";
 import { BiomarkerCard } from "@/components/biomarker-card";
 import { CategoryCard } from "@/components/category-card";
 import { GroupCard } from "@/components/group-card";
-import { getBiomarkersWithLatest, groupHierarchy } from "@/lib/biomarkers";
+import { IssuesSection } from "@/components/issues-section";
+import { getBiomarkersWithLatest, getIssues, groupHierarchy } from "@/lib/biomarkers";
 import { isAuthed } from "@/lib/auth";
 import { Activity } from "lucide-react";
 
@@ -13,6 +14,7 @@ export const dynamic = "force-dynamic";
 export default async function Home() {
   const [data, authed] = await Promise.all([getBiomarkersWithLatest(), isAuthed()]);
   const { groups, categories, standalone } = groupHierarchy(data);
+  const issues = getIssues(data);
 
   return (
     <div className="mx-auto max-w-[100rem] px-6 py-10">
@@ -47,6 +49,8 @@ export default async function Home() {
           ))}
         </div>
       )}
+
+      <IssuesSection issues={issues} />
     </div>
   );
 }

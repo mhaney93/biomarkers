@@ -20,6 +20,18 @@ export const statusStyles: Record<Status, string> = {
   "no-reading": "bg-muted text-muted-foreground border-border",
 };
 
+export function percentOutOfRange(
+  value: number | null | undefined,
+  refLow: number | null | undefined,
+  refHigh: number | null | undefined
+): number | null {
+  const status = getStatus(value, refLow, refHigh);
+  if (value == null) return null;
+  if (status === "low" && refLow) return ((refLow - value) / refLow) * 100;
+  if (status === "high" && refHigh) return ((value - refHigh) / refHigh) * 100;
+  return null;
+}
+
 export const statusLabels: Record<Status, string> = {
   low: "Low",
   normal: "In range",

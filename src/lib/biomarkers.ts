@@ -1,6 +1,7 @@
 import { getDb } from "@/db";
 import { biomarkers, readings } from "@/db/schema";
 import { desc, eq, sql } from "drizzle-orm";
+import { getStatus, percentOutOfRange } from "@/lib/status";
 
 export async function getBiomarkersWithLatest() {
   const db = getDb();
@@ -57,6 +58,23 @@ export function groupByCategory(data: BiomarkerWithLatest[]) {
 
   return { categories, standalone };
 }
+
+export function getIssues(data: BiomarkerWithLatest[]) {
+  return data
+    .filter((b) => b.valueType !== "text")
+    .map((b) => {
+      const value = b.latest?.value != null ? Number(b.latest.value) : null;
+      const refLow = b.refLow != null ? Number(b.refLow) : null;
+      const refHigh = b.refHigh != null ? Number(b.refHigh) : null;
+      const status = getStatus(value, refLow, refHigh);
+      const percent = percentOutOfRange(value, refLow, refHigh);
+      return { biomarker: b, value, refLow, refHigh, status, percent };
+    })
+    .filter((i) => (i.status === "low" || i.status === "high") && i.percent != null)
+    .sort((a, b) => (b.percent ?? 0) - (a.percent ?? 0));
+}
+
+export type Issue = ReturnType<typeof getIssues>[number];
 
 export function groupHierarchy(data: BiomarkerWithLatest[]) {
   const byGroup = new Map<string, BiomarkerWithLatest[]>();
