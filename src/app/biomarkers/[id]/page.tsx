@@ -2,7 +2,7 @@ import { getDb } from "@/db";
 import { biomarkers, readings } from "@/db/schema";
 import { asc, desc, eq, sql } from "drizzle-orm";
 import { notFound } from "next/navigation";
-import Link from "next/link";
+import { Breadcrumbs, type Crumb } from "@/components/breadcrumbs";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -24,7 +24,6 @@ import { getBadgeProps, getStatus, percentOutOfRange, statusLabels } from "@/lib
 import { getBiomarkersWithLatest, getMaxDeltaPercent } from "@/lib/biomarkers";
 import { isAuthed } from "@/lib/auth";
 import { formatDuration } from "@/lib/duration";
-import { ArrowLeft } from "lucide-react";
 import { format } from "date-fns";
 
 export const dynamic = "force-dynamic";
@@ -44,21 +43,29 @@ export default async function BiomarkerPage({
 
   const isText = biomarker.valueType === "text";
 
-  let backHref = "/";
-  let backLabel = "All biomarkers";
+  const trail: Crumb[] = [];
   if (biomarker.group && biomarker.category) {
-    backHref = `/groups/${encodeURIComponent(biomarker.group)}/categories/${encodeURIComponent(biomarker.category)}`;
-    backLabel = biomarker.category;
+    trail.push({
+      label: biomarker.group,
+      href: `/groups/${encodeURIComponent(biomarker.group)}`,
+    });
+    trail.push({
+      label: biomarker.category,
+      href: `/groups/${encodeURIComponent(biomarker.group)}/categories/${encodeURIComponent(biomarker.category)}`,
+    });
   } else if (biomarker.category) {
     const [{ count }] = await db
       .select({ count: sql<number>`count(*)::int` })
       .from(biomarkers)
       .where(eq(biomarkers.category, biomarker.category));
     if (count >= 2) {
-      backHref = `/categories/${encodeURIComponent(biomarker.category)}`;
-      backLabel = biomarker.category;
+      trail.push({
+        label: biomarker.category,
+        href: `/categories/${encodeURIComponent(biomarker.category)}`,
+      });
     }
   }
+  trail.push({ label: biomarker.name });
 
   const allReadings = await db
     .select()
@@ -88,13 +95,7 @@ export default async function BiomarkerPage({
 
   return (
     <div className="mx-auto max-w-5xl px-6 py-10">
-      <Link
-        href={backHref}
-        className="mb-6 inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
-      >
-        <ArrowLeft className="h-4 w-4" />
-        {backLabel}
-      </Link>
+      <Breadcrumbs trail={trail} />
 
       <div className="mb-6 flex items-start justify-between gap-4">
         <div className="min-w-0">
