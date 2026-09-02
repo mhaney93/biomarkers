@@ -1,12 +1,11 @@
-import Link from "next/link";
 import { notFound } from "next/navigation";
 import { BiomarkerCard } from "@/components/biomarker-card";
 import { AddBiomarkerDialog } from "@/components/add-biomarker-dialog";
+import { Breadcrumbs } from "@/components/breadcrumbs";
 import { RenameCategoryDialog } from "@/components/rename-category-dialog";
 import { UnlockDialog } from "@/components/unlock-dialog";
 import { getBiomarkersWithLatest, getMaxDeltaPercent } from "@/lib/biomarkers";
 import { isAuthed } from "@/lib/auth";
-import { ArrowLeft } from "lucide-react";
 
 export const dynamic = "force-dynamic";
 
@@ -27,13 +26,12 @@ export default async function GroupCategoryPage({
 
   return (
     <div className="mx-auto max-w-[100rem] px-6 py-10">
-      <Link
-        href={`/groups/${encodeURIComponent(group)}`}
-        className="mb-6 inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
-      >
-        <ArrowLeft className="h-4 w-4" />
-        {group}
-      </Link>
+      <Breadcrumbs
+        trail={[
+          { label: group, href: `/groups/${encodeURIComponent(group)}` },
+          { label: category },
+        ]}
+      />
 
       <div className="mb-8 flex items-center justify-between">
         <div className="flex items-center gap-1">

@@ -1,11 +1,10 @@
-import Link from "next/link";
 import { notFound } from "next/navigation";
 import { BiomarkerCard } from "@/components/biomarker-card";
 import { CategoryCard } from "@/components/category-card";
+import { Breadcrumbs } from "@/components/breadcrumbs";
 import { RenameGroupDialog } from "@/components/rename-group-dialog";
 import { getBiomarkersWithLatest, getMaxDeltaPercent, groupItemsByCategory } from "@/lib/biomarkers";
 import { isAuthed } from "@/lib/auth";
-import { ArrowLeft } from "lucide-react";
 
 export const dynamic = "force-dynamic";
 
@@ -27,13 +26,7 @@ export default async function GroupPage({
 
   return (
     <div className="mx-auto max-w-[100rem] px-6 py-10">
-      <Link
-        href="/"
-        className="mb-6 inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
-      >
-        <ArrowLeft className="h-4 w-4" />
-        All biomarkers
-      </Link>
+      <Breadcrumbs trail={[{ label: group }]} />
 
       <div className="mb-8 flex items-center gap-1">
         <h1 className="text-2xl font-semibold tracking-tight">{group}</h1>
