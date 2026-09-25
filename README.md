@@ -1,36 +1,86 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Biomarkers
 
-## Getting Started
+A personal web app for logging lab results and health metrics over time and seeing how they trend.
 
-First, run the development server:
+**Live:** https://biomarkers-kappa.vercel.app
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+## Features
+
+- **Biomarkers and readings**: track any metric with a unit and reference range, then log dated readings with optional notes.
+- **Three value types**:
+  - **Number**: a value with a unit and a low/high reference range, shown with a trend chart and a status badge.
+  - **Duration (h:m)**: for time-based metrics such as glucose spike duration. Stored as total minutes and displayed as `h:mm`.
+  - **Text**: freeform notes. No unit, range, or chart.
+- **Groups and categories**: biomarkers can sit in a category, and categories can be nested under a group (for example, a "Baseline Test" panel split into Blood, Heart, Kidney, and so on). Categories and groups can be renamed in one step.
+- **Issues section**: the homepage lists every biomarker whose latest reading is out of range, worst first.
+- **Severity colors**: out-of-range badges shade from yellow to red according to how far past the range they are, relative to the worst value across the site.
+- **Search**: the homepage filters biomarkers by name, category, group, or unit.
+- **Navigation**: breadcrumb trails on every page and a loading skeleton during navigation.
+
+## Access model
+
+Anyone with the URL can view the site. Adding, editing, or deleting anything requires the app password. Click **Unlock editing** and enter it, and a cookie keeps you unlocked for 30 days. Every mutating server action calls `requireAuth()` (`src/lib/auth.ts`), so hiding the buttons in the UI is not the only protection.
+
+## Stack
+
+- [Next.js 16](https://nextjs.org) (App Router, Server Actions)
+- [Neon Postgres](https://neon.tech) with [Drizzle ORM](https://orm.drizzle.team)
+- [shadcn/ui](https://ui.shadcn.com) and Tailwind CSS v4
+- [Recharts](https://recharts.org) for trend charts
+- Deployed on [Vercel](https://vercel.com)
+
+## Project layout
+
+```
+src/
+  app/
+    page.tsx                                   Homepage: Issues, search, group/category grid
+    actions.ts                                 Server actions (all mutations)
+    biomarkers/[id]/                           Biomarker detail: chart and readings table
+    categories/[category]/                     Ungrouped category
+    groups/[group]/                            Categories within a group
+    groups/[group]/categories/[category]/      Biomarkers within a group's category
+  components/                                  Cards, dialogs, trend chart, breadcrumbs
+  db/schema.ts                                 Drizzle schema (biomarkers, readings)
+  lib/
+    auth.ts                                    Password cookie check
+    status.ts                                  Range status and severity colors
+    duration.ts                                h:m formatting
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## Local development
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+1. Install dependencies:
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+   ```bash
+   npm install
+   ```
 
-## Learn More
+2. Create `.env.local` with:
 
-To learn more about Next.js, take a look at the following resources:
+   ```
+   DATABASE_URL=postgres://...
+   APP_PASSWORD=...
+   ```
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+   If the project is linked to Vercel, `vercel env pull .env.local` fills these in.
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+3. Start the dev server:
 
-## Deploy on Vercel
+   ```bash
+   npm run dev
+   ```
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+   Then open http://localhost:3000.
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## Database changes
+
+The schema lives in `src/db/schema.ts`. There are no migration files. Changes are pushed directly:
+
+```bash
+npx dotenv -e .env.local -- npx drizzle-kit push
+```
+
+## Deployment
+
+Pushing to `master` deploys to production through Vercel's GitHub integration.
