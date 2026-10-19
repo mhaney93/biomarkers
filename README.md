@@ -14,6 +14,7 @@ A personal web app for logging lab results and health metrics over time and seei
 - **Groups and categories**: biomarkers can sit in a category, and categories can be nested under a group (for example, a "Baseline Test" panel split into Blood, Heart, Kidney, and so on). Categories and groups can be renamed in one step.
 - **Issues section**: the homepage lists every biomarker whose latest reading is out of range, worst first.
 - **Severity colors**: out-of-range badges shade from yellow to red according to how far past the range they are, relative to the worst value across the site.
+- **Allergy classes**: allergen-specific IgE results (unit `kU/L`, name ending in `IgE`) show the lab's 0–6 allergy class instead of a percent. Their severity color follows that class.
 - **Search**: the homepage filters biomarkers by name, category, group, or unit.
 - **Navigation**: breadcrumb trails on every page and a loading skeleton during navigation.
 
@@ -32,6 +33,7 @@ Anyone with the URL can view the site. Adding, editing, or deleting anything req
 ## Project layout
 
 ```
+scripts/                                       Idempotent lab-report imports into the live DB
 src/
   app/
     page.tsx                                   Homepage: Issues, search, group/category grid
@@ -44,7 +46,7 @@ src/
   db/schema.ts                                 Drizzle schema (biomarkers, readings)
   lib/
     auth.ts                                    Password cookie check
-    status.ts                                  Range status and severity colors
+    status.ts                                  Range status, severity colors, allergen classes
     duration.ts                                h:m formatting
 ```
 

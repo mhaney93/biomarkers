@@ -1,7 +1,16 @@
 import Link from "next/link";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { getBadgeProps, getStatus, percentOutOfRange, statusLabels } from "@/lib/status";
+import {
+  allergenBadgeLabel,
+  getAllergenBadgeProps,
+  getAllergenClass,
+  getBadgeProps,
+  getStatus,
+  isAllergenIgE,
+  percentOutOfRange,
+  statusLabels,
+} from "@/lib/status";
 import { formatDuration } from "@/lib/duration";
 import { format } from "date-fns";
 import type { BiomarkerWithLatest } from "@/lib/biomarkers";
@@ -21,7 +30,8 @@ export function BiomarkerCard({
   const refHigh = b.refHigh != null ? Number(b.refHigh) : null;
   const status = getStatus(value, refLow, refHigh);
   const percent = percentOutOfRange(value, refLow, refHigh);
-  const badge = getBadgeProps(status, percent, maxPercent);
+  const allergen = isAllergenIgE(b) ? getAllergenClass(value) : null;
+  const badge = allergen ? getAllergenBadgeProps(status, allergen) : getBadgeProps(status, percent, maxPercent);
 
   return (
     <Link href={`/biomarkers/${b.id}`}>
@@ -36,7 +46,7 @@ export function BiomarkerCard({
             )}
             {!isText && (
               <Badge variant="outline" className={`shrink-0 ${badge.className}`} style={badge.style}>
-                {statusLabels[status]}
+                {allergen ? allergenBadgeLabel(allergen) : statusLabels[status]}
               </Badge>
             )}
           </div>

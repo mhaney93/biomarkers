@@ -1,7 +1,7 @@
 import { getDb } from "@/db";
 import { biomarkers, readings } from "@/db/schema";
 import { desc, eq, sql } from "drizzle-orm";
-import { getStatus, percentOutOfRange } from "@/lib/status";
+import { getAllergenClass, getStatus, isAllergenIgE, percentOutOfRange } from "@/lib/status";
 
 export async function getBiomarkersWithLatest() {
   const db = getDb();
@@ -67,11 +67,20 @@ export function getIssues(data: BiomarkerWithLatest[]) {
       const refLow = b.refLow != null ? Number(b.refLow) : null;
       const refHigh = b.refHigh != null ? Number(b.refHigh) : null;
       const status = getStatus(value, refLow, refHigh);
-      const percent = percentOutOfRange(value, refLow, refHigh);
-      return { biomarker: b, value, refLow, refHigh, status, percent };
+      // Allergens are graded by class instead of percent so they stay out of maxPercent
+      const allergen = isAllergenIgE(b) ? getAllergenClass(value) : null;
+      const percent = allergen ? null : percentOutOfRange(value, refLow, refHigh);
+      return { biomarker: b, value, refLow, refHigh, status, percent, allergen };
     })
-    .filter((i) => (i.status === "low" || i.status === "high") && i.percent != null)
-    .sort((a, b) => (b.percent ?? 0) - (a.percent ?? 0));
+    .filter((i) => (i.status === "low" || i.status === "high") && (i.percent != null || i.allergen != null))
+    .sort((a, b) => {
+      if (a.allergen || b.allergen) {
+        if (!a.allergen) return -1;
+        if (!b.allergen) return 1;
+        return (b.value ?? 0) - (a.value ?? 0);
+      }
+      return (b.percent ?? 0) - (a.percent ?? 0);
+    });
 }
 
 export type Issue = ReturnType<typeof getIssues>[number];

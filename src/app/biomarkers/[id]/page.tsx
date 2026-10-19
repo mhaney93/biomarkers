@@ -1,6 +1,6 @@
 import { getDb } from "@/db";
 import { biomarkers, readings } from "@/db/schema";
-import { asc, desc, eq, sql } from "drizzle-orm";
+import { asc, eq, sql } from "drizzle-orm";
 import { notFound } from "next/navigation";
 import { Breadcrumbs, type Crumb } from "@/components/breadcrumbs";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -20,7 +20,16 @@ import { DeleteBiomarkerButton } from "@/components/delete-biomarker-button";
 import { EditReadingDialog } from "@/components/edit-reading-dialog";
 import { DeleteReadingButton } from "@/components/delete-reading-button";
 import { UnlockDialog } from "@/components/unlock-dialog";
-import { getBadgeProps, getStatus, percentOutOfRange, statusLabels } from "@/lib/status";
+import {
+  allergenBadgeLabel,
+  getAllergenBadgeProps,
+  getAllergenClass,
+  getBadgeProps,
+  getStatus,
+  isAllergenIgE,
+  percentOutOfRange,
+  statusLabels,
+} from "@/lib/status";
 import { getBiomarkersWithLatest, getMaxDeltaPercent } from "@/lib/biomarkers";
 import { isAuthed } from "@/lib/auth";
 import { formatDuration } from "@/lib/duration";
@@ -42,6 +51,7 @@ export default async function BiomarkerPage({
   if (!biomarker) notFound();
 
   const isText = biomarker.valueType === "text";
+  const isAllergen = isAllergenIgE(biomarker);
 
   const trail: Crumb[] = [];
   if (biomarker.group && biomarker.category) {
@@ -87,7 +97,10 @@ export default async function BiomarkerPage({
   const latestValue = !isText && latest?.value != null ? Number(latest.value) : null;
   const latestStatus = getStatus(latestValue, refLow, refHigh);
   const latestPercent = percentOutOfRange(latestValue, refLow, refHigh);
-  const latestBadge = getBadgeProps(latestStatus, latestPercent, maxPercent);
+  const latestAllergen = isAllergen ? getAllergenClass(latestValue) : null;
+  const latestBadge = latestAllergen
+    ? getAllergenBadgeProps(latestStatus, latestAllergen)
+    : getBadgeProps(latestStatus, latestPercent, maxPercent);
 
   const sortedDesc = [...allReadings].sort(
     (a, b) => new Date(b.takenAt).getTime() - new Date(a.takenAt).getTime()
@@ -103,7 +116,7 @@ export default async function BiomarkerPage({
             <h1 className="text-2xl font-semibold tracking-tight">{biomarker.name}</h1>
             {!isText && (
               <Badge variant="outline" className={`shrink-0 ${latestBadge.className}`} style={latestBadge.style}>
-                {statusLabels[latestStatus]}
+                {latestAllergen ? allergenBadgeLabel(latestAllergen) : statusLabels[latestStatus]}
               </Badge>
             )}
           </div>
@@ -188,13 +201,16 @@ export default async function BiomarkerPage({
                   const value = !isText && r.value != null ? Number(r.value) : null;
                   const status = getStatus(value, refLow, refHigh);
                   const percent = percentOutOfRange(value, refLow, refHigh);
-                  const badge = getBadgeProps(status, percent, maxPercent);
+                  const allergen = isAllergen ? getAllergenClass(value) : null;
+                  const badge = allergen
+                    ? getAllergenBadgeProps(status, allergen)
+                    : getBadgeProps(status, percent, maxPercent);
                   return (
                     <TableRow key={r.id}>
                       <TableCell className="whitespace-nowrap">
                         {format(new Date(r.takenAt), "MMM d, yyyy")}
                       </TableCell>
-                      <TableCell className={isText ? "max-w-[280px]" : "tabular-nums"}>
+                      <TableCell className={isText ? "max-w-[280px] whitespace-normal break-words" : "tabular-nums"}>
                         {isText ? (
                           r.textValue
                         ) : biomarker.valueType === "duration" && value != null ? (
@@ -209,7 +225,7 @@ export default async function BiomarkerPage({
                       {!isText && (
                         <TableCell>
                           <Badge variant="outline" className={badge.className} style={badge.style}>
-                            {statusLabels[status]}
+                            {allergen ? allergenBadgeLabel(allergen) : statusLabels[status]}
                           </Badge>
                         </TableCell>
                       )}
