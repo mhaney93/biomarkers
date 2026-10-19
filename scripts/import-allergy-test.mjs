@@ -1,6 +1,7 @@
-// Imports the Quest Diagnostics allergen panel (specimen collected 2017-02-11) into the live DB.
+// Imports the Quest Diagnostics allergen panel (specimen collected 2017-02-11) into the live DB,
+// plus a text note on when to retest.
 // Safe to re-run: biomarkers are matched by their unique name and left untouched if they already
-// exist, and a reading is only added when that biomarker has none on the collection date.
+// exist, and a reading is only added when that biomarker has none on the same date.
 //
 //   npx dotenv -e .env.local -- node scripts/import-allergy-test.mjs
 
@@ -70,7 +71,7 @@ const ALLERGENS = {
 };
 
 const entries = [
-  // Total IgE sits directly in the group (no category) so it shows as its own card there.
+  // Total IgE and the retest note sit directly in the group (no category) so each shows as its own card there.
   { name: "Immunoglobulin E (IgE), Total", category: null, refLow: 0, refHigh: 114, value: 49, notes: null },
   ...Object.entries(ALLERGENS).flatMap(([category, rows]) =>
     rows.map(([name, value]) => ({
@@ -82,6 +83,22 @@ const entries = [
       notes: value == null ? "Reported as <0.10 kU/L (class 0, undetectable)" : null,
     }))
   ),
+  {
+    name: "Retest Guidance",
+    valueType: "text",
+    unit: null,
+    category: null,
+    refLow: null,
+    refHigh: null,
+    takenAt: "2026-10-19",
+    value: null,
+    textValue:
+      "No fixed retest schedule for adults. Retest when symptoms change, before starting allergy shots " +
+      "(immunotherapy), or when a result would change a decision (new home or land, pets, diet). Last tested " +
+      "Feb 2017 (Quest), so a retest is due. A mold allergy (Penicillium) is not a penicillin drug allergy. " +
+      "This panel tested no medications.",
+    notes: null,
+  },
 ];
 
 const sql = neon(process.env.DATABASE_URL);
@@ -89,18 +106,19 @@ let createdBiomarkers = 0;
 let createdReadings = 0;
 
 for (const e of entries) {
+  const { valueType = "number", unit = UNIT, takenAt = TAKEN_AT, textValue = null } = e;
   const inserted = await sql`
     insert into biomarkers (name, unit, value_type, "group", category, ref_low, ref_high)
-    values (${e.name}, ${UNIT}, 'number', ${GROUP}, ${e.category}, ${e.refLow}, ${e.refHigh})
+    values (${e.name}, ${unit}, ${valueType}, ${GROUP}, ${e.category}, ${e.refLow}, ${e.refHigh})
     on conflict (name) do nothing
     returning id`;
   createdBiomarkers += inserted.length;
   const [{ id }] = inserted.length ? inserted : await sql`select id from biomarkers where name = ${e.name}`;
 
   const added = await sql`
-    insert into readings (biomarker_id, value, taken_at, notes)
-    select ${id}, ${e.value}, ${TAKEN_AT}, ${e.notes}
-    where not exists (select 1 from readings where biomarker_id = ${id} and taken_at = ${TAKEN_AT})
+    insert into readings (biomarker_id, value, text_value, taken_at, notes)
+    select ${id}, ${e.value}, ${textValue}, ${takenAt}, ${e.notes}
+    where not exists (select 1 from readings where biomarker_id = ${id} and taken_at = ${takenAt})
     returning id`;
   createdReadings += added.length;
 }
