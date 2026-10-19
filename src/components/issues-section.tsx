@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { getBadgeProps, statusLabels } from "@/lib/status";
+import { allergenBadgeLabel, getAllergenBadgeProps, getBadgeProps, statusLabels } from "@/lib/status";
 import { formatDuration } from "@/lib/duration";
 import { AlertTriangle } from "lucide-react";
 import { format } from "date-fns";
@@ -28,7 +28,7 @@ export function IssuesSection({ issues }: { issues: Issue[] }) {
         </CardHeader>
         <CardContent className="p-0">
           <div className="divide-y">
-            {issues.map(({ biomarker: b, value, refLow, refHigh, status, percent }) => (
+            {issues.map(({ biomarker: b, value, refLow, refHigh, status, percent, allergen }) => (
               <Link
                 key={b.id}
                 href={`/biomarkers/${b.id}`}
@@ -65,12 +65,16 @@ export function IssuesSection({ issues }: { issues: Issue[] }) {
                     )}
                   </div>
                   {(() => {
-                    const badge = getBadgeProps(status, percent, maxPercent);
+                    const badge = allergen
+                      ? getAllergenBadgeProps(status, allergen)
+                      : getBadgeProps(status, percent, maxPercent);
                     return (
                       <Badge variant="outline" className={badge.className} style={badge.style}>
-                        {percent != null
-                          ? `${Math.round(percent)}% ${statusLabels[status].toLowerCase()}`
-                          : statusLabels[status]}
+                        {allergen
+                          ? allergenBadgeLabel(allergen)
+                          : percent != null
+                            ? `${Math.round(percent)}% ${statusLabels[status].toLowerCase()}`
+                            : statusLabels[status]}
                       </Badge>
                     );
                   })()}

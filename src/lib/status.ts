@@ -58,6 +58,50 @@ export function getBadgeProps(
   return { className: statusStyles[status] };
 }
 
+// Allergen-specific IgE results (e.g. "Peanut (F13) IgE", in kU/L) are graded on the lab's 0–6
+// class scale. Their reference limit sits at the assay's detection floor (0.09 kU/L), so the
+// percent-past-range used elsewhere would read in the thousands and swamp every other severity.
+const ALLERGEN_CLASSES = [
+  { min: 0, label: "0", level: "Absent" },
+  { min: 0.1, label: "0/1", level: "Very low" },
+  { min: 0.35, label: "1", level: "Low" },
+  { min: 0.7, label: "2", level: "Moderate" },
+  { min: 3.5, label: "3", level: "High" },
+  { min: 17.5, label: "4", level: "Very high" },
+  { min: 50, label: "5", level: "Very high" },
+  { min: 100, label: "6", level: "Very high" }, // class 5 includes 100 itself; 6 is above it
+] as const;
+
+export type AllergenClass = { rank: number; label: string; level: string };
+
+export function isAllergenIgE(b: { name: string; unit: string | null }): boolean {
+  return b.unit === "kU/L" && /\bIgE$/.test(b.name);
+}
+
+export function getAllergenClass(value: number | null | undefined): AllergenClass | null {
+  if (value == null) return null;
+  let rank = 0;
+  ALLERGEN_CLASSES.forEach((c, i) => {
+    if (value > c.min || (value === c.min && c.label !== "6")) rank = i;
+  });
+  const { label, level } = ALLERGEN_CLASSES[rank];
+  return { rank, label, level };
+}
+
+export function getAllergenBadgeProps(
+  status: Status,
+  allergen: AllergenClass
+): { className: string; style?: CSSProperties } {
+  if (status === "high" && allergen.rank > 0) {
+    return { className: "", style: severityStyle(allergen.rank, ALLERGEN_CLASSES.length - 1) };
+  }
+  return { className: statusStyles[status] };
+}
+
+export function allergenBadgeLabel(allergen: AllergenClass): string {
+  return `Class ${allergen.label} · ${allergen.level}`;
+}
+
 export const statusLabels: Record<Status, string> = {
   low: "Low",
   normal: "In range",
