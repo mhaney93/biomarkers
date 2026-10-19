@@ -210,7 +210,7 @@ export default async function BiomarkerPage({
                       <TableCell className="whitespace-nowrap">
                         {format(new Date(r.takenAt), "MMM d, yyyy")}
                       </TableCell>
-                      <TableCell className={isText ? "max-w-[280px]" : "tabular-nums"}>
+                      <TableCell className={isText ? "max-w-[280px] whitespace-normal break-words" : "tabular-nums"}>
                         {isText ? (
                           r.textValue
                         ) : biomarker.valueType === "duration" && value != null ? (
