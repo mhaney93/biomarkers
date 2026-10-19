@@ -1,6 +1,6 @@
 import { getDb } from "@/db";
 import { biomarkers, readings } from "@/db/schema";
-import { asc, desc, eq, sql } from "drizzle-orm";
+import { asc, eq, sql } from "drizzle-orm";
 import { notFound } from "next/navigation";
 import { Breadcrumbs, type Crumb } from "@/components/breadcrumbs";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
