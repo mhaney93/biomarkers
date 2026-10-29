@@ -1,6 +1,9 @@
 // Imports the BodySpec DEXA scan (measured 2025-03-23) into the live DB under a "DEXA scan" group.
-// Safe to re-run: biomarkers are matched by their unique name and left untouched if they already
-// exist, and a reading is only added when that biomarker has none on the same date.
+// Safe to re-run: biomarkers are matched by their unique name. Missing biomarkers are created, and a
+// reading is added when that biomarker has none on the scan date. Existing biomarkers in the "DEXA scan"
+// group get their unit, value type, category and range synced to this script, and their scan-date
+// readings get their value, text value and notes synced. Biomarkers in other groups and readings on
+// other dates are never modified.
 //
 //   npx dotenv -e .env.local -- node scripts/import-dexa-scan.mjs
 
@@ -136,6 +139,8 @@ const entries = [
 const sql = neon(process.env.DATABASE_URL);
 let createdBiomarkers = 0;
 let createdReadings = 0;
+let updatedBiomarkers = 0;
+let updatedReadings = 0;
 
 for (const e of entries) {
   const { valueType = "number", refLow = null, refHigh = null, textValue = null, notes = null } = e;
@@ -145,7 +150,30 @@ for (const e of entries) {
     on conflict (name) do nothing
     returning id`;
   createdBiomarkers += inserted.length;
-  const [{ id }] = inserted.length ? inserted : await sql`select id from biomarkers where name = ${e.name}`;
+  const [{ id, group }] = inserted.length
+    ? [{ id: inserted[0].id, group: GROUP }]
+    : await sql`select id, "group" from biomarkers where name = ${e.name}`;
+
+  if (!inserted.length && group === GROUP) {
+    const updated = await sql`
+      update biomarkers
+      set unit = ${e.unit}, value_type = ${valueType}, category = ${e.category}, ref_low = ${refLow}, ref_high = ${refHigh}
+      where id = ${id}
+        and (unit is distinct from ${e.unit} or value_type is distinct from ${valueType}
+          or category is distinct from ${e.category} or ref_low is distinct from ${refLow}
+          or ref_high is distinct from ${refHigh})
+      returning id`;
+    updatedBiomarkers += updated.length;
+
+    const updatedRows = await sql`
+      update readings
+      set value = ${e.value}, text_value = ${textValue}, notes = ${notes}
+      where biomarker_id = ${id} and taken_at = ${TAKEN_AT}
+        and (value is distinct from ${e.value} or text_value is distinct from ${textValue}
+          or notes is distinct from ${notes})
+      returning id`;
+    updatedReadings += updatedRows.length;
+  }
 
   const added = await sql`
     insert into readings (biomarker_id, value, text_value, taken_at, notes)
@@ -156,6 +184,6 @@ for (const e of entries) {
 }
 
 console.log(
-  `${entries.length} biomarkers: ${createdBiomarkers} created, ${entries.length - createdBiomarkers} already present. ` +
-    `${createdReadings} readings added.`
+  `${entries.length} biomarkers: ${createdBiomarkers} created, ${entries.length - createdBiomarkers} already present, ${updatedBiomarkers} updated. ` +
+    `${createdReadings} readings added, ${updatedReadings} updated.`
 );
