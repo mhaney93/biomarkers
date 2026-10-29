@@ -13,7 +13,7 @@ export function ScanImageLightbox({ img }: { img: ScanImage }) {
           <Image src={img.src} alt={img.alt} width={img.width} height={img.height} />
         </button>
       </DialogTrigger>
-      <DialogContent className="w-auto max-w-[calc(100vw-2rem)] p-2 pt-10 sm:max-w-[calc(100vw-2rem)]">
+      <DialogContent className="w-max max-w-[calc(100vw-2rem)] p-2 pt-10 sm:max-w-[calc(100vw-2rem)]">
         <DialogTitle className="sr-only">{img.alt}</DialogTitle>
         <Image
           src={img.src}
