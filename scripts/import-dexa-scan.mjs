@@ -61,8 +61,12 @@ const entries = [
     name: "Total Body Fat %",
     unit: "%",
     category: null,
+    refLow: 14,
+    refHigh: 24,
     value: 47.4,
-    notes: "BodySpec body fat percentile chart, men 30–39: above 30% is the 80th–99th percentile",
+    notes:
+      "Range: ACE body fat categories for men, fitness through acceptable (14–24%). " +
+      "BodySpec body fat percentile chart, men 30–39: above 30% is the 80th–99th percentile",
   },
   { name: "Total Mass", unit: "lbs", category: null, value: 342.9 },
   { name: "Total Fat Tissue", unit: "lbs", category: null, value: 162.4 },
@@ -70,7 +74,16 @@ const entries = [
   { name: "Total Lean %", unit: "%", category: null, value: 50.4 },
   { name: "Total Bone Mineral Content (BMC)", unit: "lbs", category: null, value: 7.6 },
   { name: "Intake Weight", unit: "lbs", category: null, value: 343.0 },
-  { name: "Intake Height", unit: "in", category: null, value: 72.0 },
+  // Text so it reads as feet and inches; the report prints "72.0 in."
+  {
+    name: "Intake Height",
+    valueType: "text",
+    unit: null,
+    category: null,
+    value: null,
+    textValue: "6 ft 0 in",
+    notes: "Reported as 72.0 in",
+  },
   { name: "Resting Metabolic Rate (RMR)", unit: "cal/day", category: null, value: 2026 },
   {
     // The report: "Android fat should be less than Total Body Fat %. A/G Ratio should be < 1.0"
@@ -79,6 +92,7 @@ const entries = [
     category: null,
     refHigh: 1.0,
     value: 1.27,
+    notes: "Range: BodySpec report, A/G ratio should be below 1.0",
   },
   {
     name: "Visceral Adipose Tissue (VAT)",
@@ -99,13 +113,23 @@ const entries = [
     category: "Bone Density",
     value,
   })),
-  { name: "Total BMD Young Adult T-Score", unit: null, category: "Bone Density", value: 1.1 },
+  {
+    name: "Total BMD Young Adult T-Score",
+    unit: null,
+    category: "Bone Density",
+    refLow: -1.0,
+    value: 1.1,
+    notes: "Range: WHO, a T-score of -1.0 or higher is normal; -1.0 to -2.5 is osteopenia",
+  },
   {
     name: "Total BMD Age-Matched Z-Score",
     unit: null,
     category: "Bone Density",
+    refLow: -2.0,
     value: 1.1,
-    notes: "Z-score 0.5 to 1.5 is greater than 69%–93% of the population",
+    notes:
+      "Range: ISCD, a Z-score above -2.0 is within the expected range for age. " +
+      "Z-score 0.5 to 1.5 is greater than 69%–93% of the population",
   },
 ];
 
