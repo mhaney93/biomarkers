@@ -26,6 +26,7 @@ const FAT_PCT_NOTES = {
 };
 
 // Muscle balance report (p3): [fat %, total mass, fat mass, lean mass, BMC]
+// The report itself prints identical right/left values for both arms and both legs; not a transcription error.
 const LIMBS = {
   "Right Arm": [40.0, 20.1, 8.0, 11.5, 0.6],
   "Left Arm": [40.0, 20.1, 8.0, 11.5, 0.6],
