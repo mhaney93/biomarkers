@@ -1,4 +1,3 @@
-import Image from "next/image";
 import { notFound } from "next/navigation";
 import { format, parseISO } from "date-fns";
 import { BiomarkerCard } from "@/components/biomarker-card";
@@ -8,6 +7,7 @@ import { RenameGroupDialog } from "@/components/rename-group-dialog";
 import { getBiomarkersWithLatest, getMaxDeltaPercent, groupItemsByCategory } from "@/lib/biomarkers";
 import { isAuthed } from "@/lib/auth";
 import { GROUP_SCAN_IMAGES } from "@/lib/scan-images";
+import { ScanImageLightbox } from "@/components/scan-image-lightbox";
 
 export const dynamic = "force-dynamic";
 
@@ -41,7 +41,7 @@ export default async function GroupPage({
         <div className="mb-8 flex flex-wrap gap-4">
           {scanImages.map((img) => (
             <figure key={img.src} className="rounded-lg border bg-card p-3">
-              <Image src={img.src} alt={img.alt} width={img.width} height={img.height} />
+              <ScanImageLightbox img={img} />
               <figcaption className="mt-2 text-xs text-muted-foreground">
                 {format(parseISO(img.takenAt), "MMM d, yyyy")}
               </figcaption>
