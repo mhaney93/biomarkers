@@ -10,6 +10,9 @@ import { SleepSyncPanel, type SleepSyncStatus } from "@/components/sleep-sync-pa
 import { googleConfigured } from "@/lib/google";
 import { getGoogleStatus } from "@/lib/sleep-sync";
 import { CATEGORY as SLEEP_CATEGORY } from "@/lib/sleep";
+import { MyAirSyncPanel, type MyAirSyncStatus } from "@/components/myair-sync-panel";
+import { myAirConfigured } from "@/lib/myair";
+import { getMyAirStatus } from "@/lib/myair-sync";
 
 export const dynamic = "force-dynamic";
 // The Sleep page's "Sync now" server action reads up to a year of nights per call.
@@ -22,6 +25,20 @@ async function sleepSyncStatus(): Promise<SleepSyncStatus> {
     connected: s != null,
     hasSleepScope: s?.hasSleepScope ?? false,
     syncedTo: s?.sleepSyncedTo ?? null,
+    lastSyncAt: s?.lastSyncAt?.toISOString() ?? null,
+    lastSync: s?.lastSync ?? null,
+  };
+}
+
+// The myAir tables are only read once its credentials are set.
+async function myAirSyncStatus(): Promise<MyAirSyncStatus> {
+  const configured = myAirConfigured();
+  const s = configured ? await getMyAirStatus() : null;
+  return {
+    configured,
+    backfillFrom: s?.backfillFrom ?? null,
+    backfillDone: s?.backfillDone ?? false,
+    codeSent: s?.mfaSentAt != null,
     lastSyncAt: s?.lastSyncAt?.toISOString() ?? null,
     lastSync: s?.lastSync ?? null,
   };
@@ -43,8 +60,9 @@ export default async function CategoryPage({
 
   if (items.length === 0) notFound();
   const showSleepSync = authed && category === SLEEP_CATEGORY;
-  const [sleepStatus, { google, reason }] = await Promise.all([
+  const [sleepStatus, myAirStatus, { google, reason }] = await Promise.all([
     showSleepSync ? sleepSyncStatus() : null,
+    showSleepSync ? myAirSyncStatus() : null,
     searchParams,
   ]);
 
@@ -61,6 +79,7 @@ export default async function CategoryPage({
       </div>
 
       {sleepStatus && <SleepSyncPanel status={sleepStatus} googleParam={{ google, reason }} />}
+      {myAirStatus && <MyAirSyncPanel status={myAirStatus} />}
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
         {items.map((b) => (

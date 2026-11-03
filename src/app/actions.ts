@@ -8,6 +8,7 @@ import { cookies } from "next/headers";
 import { AUTH_COOKIE, getAuthToken, getExpectedToken, requireAuth } from "@/lib/auth";
 import { toTotalMinutes } from "@/lib/duration";
 import { runSleepSync } from "@/lib/sleep-sync";
+import { runMyAirSync, sendMyAirCode, verifyMyAirCode } from "@/lib/myair-sync";
 
 function resolveReadingValue(formData: FormData): { value: string | null; textValue: string | null } {
   if (formData.has("textValue")) {
@@ -190,4 +191,34 @@ export async function syncSleepNow() {
   const result = await runSleepSync();
   revalidatePath("/categories/Sleep");
   return result;
+}
+
+export async function syncMyAirNow() {
+  await requireAuth();
+  const result = await runMyAirSync();
+  revalidatePath("/categories/Sleep");
+  return result;
+}
+
+// myAir's emailed-code sign-in. Errors come back as values: a thrown message is hidden in production.
+export async function sendMyAirCodeNow(): Promise<{ sent?: boolean; error?: string }> {
+  await requireAuth();
+  try {
+    const r = await sendMyAirCode();
+    revalidatePath("/categories/Sleep");
+    return r;
+  } catch (e) {
+    return { error: (e as Error).message };
+  }
+}
+
+export async function verifyMyAirCodeNow(code: string): Promise<{ error?: string }> {
+  await requireAuth();
+  try {
+    await verifyMyAirCode(code);
+    revalidatePath("/categories/Sleep");
+    return {};
+  } catch (e) {
+    return { error: (e as Error).message };
+  }
 }
