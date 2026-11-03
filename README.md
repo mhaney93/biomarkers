@@ -35,7 +35,7 @@ Anyone with the URL can view the site. Adding, editing, or deleting anything req
 
 ResMed has no public myAir API, so `src/lib/myair.ts` signs in the way the myAir web app does (Okta username/password, then an OAuth code with PKCE) and reads nightly records from its GraphQL API, as the community Home Assistant `resmed_myair` integration does. ResMed can break this at any time.
 
-- **Credentials**: `MYAIR_USERNAME`, `MYAIR_PASSWORD` and optionally `MYAIR_REGION` (`US`, the default, or `EU`) in the Vercel env. Okta's tokens and remembered-device cookie are kept server-side in the `myair_auth` table; nothing reaches the browser.
+- **Credentials**: `MYAIR_USERNAME` and `MYAIR_PASSWORD` (a US/North America myAir account) in the Vercel env. Okta's tokens and remembered-device cookie are kept server-side in the `myair_auth` table; nothing reaches the browser.
 - **Emailed codes**: if myAir asks for one, the Sleep page shows **Send code** and a code box (unlock editing first). After one verified code the device is remembered and later syncs sign in without one.
 - **Backfill and daily**: **Sync myAir** (or the daily cron, `/api/cron/myair`, `CRON_SECRET` as for sleep) rereads the last 3 nights, then walks back a month at a time until 24 months in a row have no nights (`backfill_from` is the resumable cursor). Nights are stored one per date in `cpap_nights`.
 - **Rules**: readings are dated the last day of each completed month (Pacific time), from months with at least 10 nights. Usage averages every night myAir has a record for (zero-use nights count); the others average nights of use. A month whose value changes later (a late upload) is updated. Ranges: usage at least 4 h, AHI at most 5, leak at most 24 L/min. Definitions are in `src/lib/cpap.ts`.
@@ -90,7 +90,6 @@ src/
    # CPAP sync (optional)
    MYAIR_USERNAME=...
    MYAIR_PASSWORD=...
-   MYAIR_REGION=US
    ```
 
    If the project is linked to Vercel, `vercel env pull .env.local` fills these in.

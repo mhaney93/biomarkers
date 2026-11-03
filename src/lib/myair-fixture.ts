@@ -2,9 +2,9 @@
 // recorded by the reference Home Assistant integration (resmed_myair_sensors tests and its
 // scripts/graphql_schema.json). Not imported by the app.
 import crypto from "node:crypto";
-import { REGIONS, type MyAirSleepRecord } from "@/lib/myair";
+import { MYAIR_NA, type MyAirSleepRecord } from "@/lib/myair";
 
-const NA = REGIONS.NA;
+const NA = MYAIR_NA;
 const OKTA = `https://${NA.oktaUrl}`;
 const OAUTH = `${OKTA}/oauth2/${NA.authServerId}/v1`;
 const FACTOR = `${OKTA}/api/v1/authn/factors/emf123/verify`;
@@ -23,6 +23,8 @@ export type FakeMyAirOptions = {
   rejectTokens?: string[];
   // Months (YYYY-MM-01) whose query fails with a server error.
   failMonths?: string[];
+  // Months myAir answers with no sleep records list (sleepRecords: null).
+  noListMonths?: string[];
 };
 
 export function fakeMyAir(opts: FakeMyAirOptions = {}) {
@@ -91,6 +93,7 @@ export function fakeMyAir(opts: FakeMyAirOptions = {}) {
       const { query } = JSON.parse(body);
       const [, from, to] = /startMonth: "([\d-]+)", endMonth: "([\d-]+)"/.exec(query) ?? [];
       if (opts.failMonths?.includes(from)) return reply(500, { errors: [{ message: "Internal failure" }] });
+      if (opts.noListMonths?.includes(from)) return reply(200, { data: { getPatientWrapper: { sleepRecords: null } } });
       const items = (opts.records ?? []).filter((r) => r.startDate >= from && r.startDate <= to).map((r) => ({ ...r, __typename: "SleepRecord" }));
       return reply(200, { data: { getPatientWrapper: { sleepRecords: { items, __typename: "SleepRecordConnection" }, __typename: "PatientWrapper" } } });
     }

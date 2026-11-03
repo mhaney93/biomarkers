@@ -24,7 +24,6 @@ beforeEach(async () => {
   await apply();
   vi.stubEnv("MYAIR_USERNAME", "me@example.com");
   vi.stubEnv("MYAIR_PASSWORD", "hunter2");
-  vi.stubEnv("MYAIR_REGION", "US");
 });
 afterEach(() => {
   vi.unstubAllEnvs();
@@ -165,6 +164,17 @@ test("a month myAir fails on stays in the backfill for the next run", async () =
   const next = await runMyAirSync({ today: TODAY, fetchImpl: fakeMyAir({ records: RECORDS }).fetchImpl, budgetMs: 60_000 });
   assert.equal(next.backfillDone, true);
   assert.deepEqual((await readingsByName())["CPAP AHI (Monthly)"], ["2026-08-31=1.2", "2026-09-30=1.2", "2026-10-31=1.2"]);
+});
+
+test("a month with no sleep records list stalls the backfill without failing the run", async () => {
+  const f = fakeMyAir({ records: RECORDS, noListMonths: ["2026-08-01"] });
+  const r = await runMyAirSync({ today: TODAY, fetchImpl: f.fetchImpl, budgetMs: 60_000 });
+  assert.equal(r.error, undefined);
+  assert.equal(r.backfillDone, false);
+  assert.equal(r.backfillFrom, "2026-09-01");
+  assert.match(r.warnings.join(), /backfill 2026-08: myAir API returned no sleep records list/);
+  assert.equal(f.calls.filter((c) => c.url.endsWith("/authn")).length, 1);
+  assert.deepEqual((await readingsByName())["CPAP AHI (Monthly)"], ["2026-09-30=1.2", "2026-10-31=1.2"]);
 });
 
 test("without credentials the sync does nothing", async () => {

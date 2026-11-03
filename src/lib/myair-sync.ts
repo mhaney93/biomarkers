@@ -19,13 +19,13 @@ import {
   type CpapNight,
 } from "@/lib/cpap";
 import {
+  MYAIR_NA,
   MyAirAuthError,
   MyAirStaleTokenError,
   myAirAuth,
   myAirClient,
   myAirConfigured,
   myAirCredentials,
-  regionConfig,
   type MyAirClient,
   type MyAirTokens,
 } from "@/lib/myair";
@@ -77,7 +77,7 @@ async function signIn(row: AuthRow, fetchImpl: typeof fetch, force = false): Pro
   if (!force && row.accessToken && row.idToken && row.tokenExpiresAt && row.tokenExpiresAt.getTime() > Date.now())
     return { tokens: { accessToken: row.accessToken, idToken: row.idToken, expiresAt: row.tokenExpiresAt.getTime() }, fresh: false };
   const { username, password } = myAirCredentials();
-  const r = await myAirAuth(regionConfig(), fetchImpl).login(username, password, row.deviceToken);
+  const r = await myAirAuth(MYAIR_NA, fetchImpl).login(username, password, row.deviceToken);
   if (r.status === "MFA_REQUIRED") {
     if (r.deviceToken && r.deviceToken !== row.deviceToken) await setAuth({ deviceToken: r.deviceToken });
     throw new MfaRequiredError("myAir wants an emailed code: use Send code, then enter it");
@@ -93,7 +93,7 @@ function retryingClient(row: AuthRow, fetchImpl: typeof fetch): MyAirClient {
   const get = async (force: boolean) => {
     if (!client || force) {
       const s = await signIn(row, fetchImpl, force);
-      client = myAirClient(regionConfig(), s.tokens, fetchImpl);
+      client = myAirClient(MYAIR_NA, s.tokens, fetchImpl);
       fresh = s.fresh;
     }
     return client;
@@ -273,7 +273,7 @@ export async function runMyAirSync({
 export async function sendMyAirCode(fetchImpl: typeof fetch = fetch): Promise<{ sent: boolean }> {
   const row = await authRow();
   const { username, password } = myAirCredentials();
-  const auth = myAirAuth(regionConfig(), fetchImpl);
+  const auth = myAirAuth(MYAIR_NA, fetchImpl);
   const r = await auth.login(username, password, row.deviceToken);
   if (r.status === "SUCCESS") {
     await saveTokens(r.tokens, r.deviceToken);
@@ -295,7 +295,7 @@ export async function verifyMyAirCode(code: string, fetchImpl: typeof fetch = fe
   if (!row.mfaStateToken || !row.mfaVerifyUrl) throw new MyAirAuthError("No code was requested: use Send code first");
   const clean = code.replace(/\s+/g, "");
   if (!/^\d{4,10}$/.test(clean)) throw new MyAirAuthError("Enter the digits from the myAir email");
-  const r = await myAirAuth(regionConfig(), fetchImpl).verifyCode(row.mfaStateToken, row.mfaVerifyUrl, clean, row.deviceToken);
+  const r = await myAirAuth(MYAIR_NA, fetchImpl).verifyCode(row.mfaStateToken, row.mfaVerifyUrl, clean, row.deviceToken);
   await saveTokens(r.tokens, r.deviceToken);
 }
 

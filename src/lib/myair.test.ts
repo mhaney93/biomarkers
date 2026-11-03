@@ -1,18 +1,10 @@
 // The myAir client against a stand-in for ResMed's Okta and GraphQL endpoints (myair-fixture.ts).
 import assert from "node:assert/strict";
 import { test } from "vitest";
-import { MyAirAuthError, MyAirStaleTokenError, REGIONS, jwtPayload, myAirAuth, myAirClient, regionConfig } from "@/lib/myair";
+import { MYAIR_NA, MyAirAuthError, MyAirStaleTokenError, jwtPayload, myAirAuth, myAirClient } from "@/lib/myair";
 import { fakeJwt, fakeMyAir, nightlyRecords } from "@/lib/myair-fixture";
 
-const NA = REGIONS.NA;
-
-test("regionConfig maps US/NA (default) and EU", () => {
-  assert.equal(regionConfig(undefined).code, "NA");
-  assert.equal(regionConfig("us").code, "NA");
-  assert.equal(regionConfig("NA").code, "NA");
-  assert.equal(regionConfig(" eu ").code, "EU");
-  assert.throws(() => regionConfig("APAC"), /Unsupported MYAIR_REGION/);
-});
+const NA = MYAIR_NA;
 
 test("login: device cookie, password authn, PKCE code exchange, tokens", async () => {
   const f = fakeMyAir();
@@ -96,6 +88,11 @@ test("sleepRecords maps myAir errors", async () => {
   const onboarding = (async () =>
     Response.json({ errors: [{ errorInfo: { errorType: "badRequest", errorCode: "onboardingFlowInProgress" } }] })) as typeof fetch;
   await assert.rejects(myAirClient(NA, tokens(), onboarding).sleepRecords("2026-10-01", "2026-10-31"), /not set up/);
+
+  const noList = fakeMyAir({ noListMonths: ["2026-10-01"] }).fetchImpl;
+  const missing = await myAirClient(NA, tokens(), noList).sleepRecords("2026-10-01", "2026-10-31").catch((e) => e);
+  assert.match(missing.message, /no sleep records list/);
+  assert.ok(!(missing instanceof MyAirStaleTokenError));
 
   const failing = fakeMyAir({ failMonths: ["2026-10-01"] }).fetchImpl;
   await assert.rejects(myAirClient(NA, tokens(), failing).sleepRecords("2026-10-01", "2026-10-31"), /Internal failure/);

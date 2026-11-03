@@ -2,12 +2,11 @@
 // app does (Okta username/password, then an OAuth code with PKCE) and reads nightly CPAP records
 // from its AppSync GraphQL API. Ported from the Home Assistant "resmed_myair" integration
 // (github.com/prestomation/resmed_myair_sensors); ResMed can change any of it without notice.
-// Credentials come from env (MYAIR_USERNAME, MYAIR_PASSWORD, MYAIR_REGION) and never appear in
-// errors, logs or the browser.
+// Credentials come from env (MYAIR_USERNAME, MYAIR_PASSWORD) and never appear in errors, logs or
+// the browser.
 import crypto from "node:crypto";
 
 export type MyAirRegion = {
-  code: "NA" | "EU";
   product: string;
   oktaUrl: string;
   authServerId: string;
@@ -17,37 +16,16 @@ export type MyAirRegion = {
   redirectUrl: string;
 };
 
-// Public client identifiers the myAir web app itself sends (from the reference integration).
-export const REGIONS: Record<MyAirRegion["code"], MyAirRegion> = {
-  NA: {
-    code: "NA",
-    product: "myAir",
-    oktaUrl: "resmed-ext-1.okta.com",
-    authServerId: "aus4ccsxvnidQgLmA297",
-    clientId: "0oa4ccq1v413ypROi297",
-    apiKey: "da2-cenztfjrezhwphdqtwtbpqvzui",
-    graphqlUrl: "https://graphql.myair-prd.dht.live/graphql",
-    redirectUrl: "https://myair.resmed.com",
-  },
-  EU: {
-    code: "EU",
-    product: "myAir EU",
-    oktaUrl: "id.resmed.eu",
-    authServerId: "aus2uznux2sYKTsEg417",
-    clientId: "0oa2uz04d2Pks2NgR417",
-    apiKey: "da2-o66oo6xdnfh5hlfuw5yw5g2dtm",
-    graphqlUrl: "https://graphql.hyperdrive.resmed.eu/graphql",
-    redirectUrl: "https://myair.resmed.eu",
-  },
+// Public client identifiers the US/North America myAir web app itself sends (from the reference integration).
+export const MYAIR_NA: MyAirRegion = {
+  product: "myAir",
+  oktaUrl: "resmed-ext-1.okta.com",
+  authServerId: "aus4ccsxvnidQgLmA297",
+  clientId: "0oa4ccq1v413ypROi297",
+  apiKey: "da2-cenztfjrezhwphdqtwtbpqvzui",
+  graphqlUrl: "https://graphql.myair-prd.dht.live/graphql",
+  redirectUrl: "https://myair.resmed.com",
 };
-
-// MYAIR_REGION: "US"/"NA" (the default) or "EU".
-export function regionConfig(value = process.env.MYAIR_REGION): MyAirRegion {
-  const v = (value ?? "").trim().toUpperCase();
-  if (!v || v === "US" || v === "NA") return REGIONS.NA;
-  if (v === "EU") return REGIONS.EU;
-  throw new Error(`Unsupported MYAIR_REGION "${value}" (use US or EU)`);
-}
 
 export function myAirConfigured() {
   return Boolean(process.env.MYAIR_USERNAME && process.env.MYAIR_PASSWORD);
@@ -294,7 +272,7 @@ export function myAirClient(region: MyAirRegion, tokens: MyAirTokens, fetchImpl:
       if (!res.ok) throw new Error(`myAir API ${res.status}`);
       const items = (body.data as { getPatientWrapper?: { sleepRecords?: { items?: unknown } } } | undefined)
         ?.getPatientWrapper?.sleepRecords?.items;
-      if (!Array.isArray(items)) throw new MyAirStaleTokenError("myAir API returned no sleep records list");
+      if (!Array.isArray(items)) throw new Error("myAir API returned no sleep records list");
       return items as MyAirSleepRecord[];
     },
   };
