@@ -11,9 +11,6 @@ export const WINDOW_DAYS = 366;
 export const OVERLAP_DAYS = 3;
 // A month with fewer days of a metric than this is not published for that metric.
 export const MIN_DAYS = 10;
-// Sleep duration publishing is held while computed durations differ from the hand-entered months by more than
-// this (median absolute difference, minutes), so a definitional gap is reported, not written.
-export const MAX_MEDIAN_DIFF = 10;
 
 const DAY = 86400e3;
 const pad = (n: number) => String(n).padStart(2, "0");
@@ -304,25 +301,6 @@ export const BIOMARKERS: SleepBiomarker[] = [
     note: (m) => `Mean of ${m.hrvDays} nightly HRV values (RMSSD during sleep). Google Health.`,
   },
 ];
-
-export type DurationComparison = {
-  rows: { month: string; site: number; google: number; diff: number }[];
-  medianAbsDiff: number | null;
-  ok: boolean;
-};
-
-// Computed monthly sleep duration against the hand-entered values (YYYY-MM -> minutes) for the
-// months both have. `ok` is false when they disagree by more than MAX_MEDIAN_DIFF.
-export function compareDurations(months: MonthValues[], siteByMonth: Map<string, number>): DurationComparison {
-  const rows = months
-    .filter((m) => m.duration != null && siteByMonth.has(m.month))
-    .map((m) => ({ month: m.month, site: siteByMonth.get(m.month)!, google: m.duration!, diff: m.duration! - siteByMonth.get(m.month)! }));
-  if (!rows.length) return { rows, medianAbsDiff: null, ok: true };
-  const abs = rows.map((r) => Math.abs(r.diff)).sort((a, b) => a - b);
-  const mid = abs.length >> 1;
-  const medianAbsDiff = abs.length % 2 ? abs[mid] : (abs[mid - 1] + abs[mid]) / 2;
-  return { rows, medianAbsDiff, ok: medianAbsDiff <= MAX_MEDIAN_DIFF };
-}
 
 // The next scan window [from, to) given the cursor (exclusive end of what has been scanned).
 // `more` is true while the window stops short of tomorrow (Pacific).

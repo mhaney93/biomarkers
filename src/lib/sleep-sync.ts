@@ -8,14 +8,12 @@ import { biomarkers, dailyHealth, googleAuth, readings, sleepSessions } from "@/
 import {
   BIOMARKERS,
   CATEGORY,
-  compareDurations,
   completeBefore,
   mapDaily,
   mapSleep,
   monthly,
   nextWindow,
   pacificToday,
-  type DurationComparison,
   type SleepSession,
 } from "@/lib/sleep";
 import {
@@ -29,10 +27,8 @@ import {
 
 export type PublishResult = {
   before: string;
-  held: boolean;
-  comparison: DurationComparison;
   added: string[];
-  changed: string[];
+  updated: string[];
   skipped: number;
 };
 
@@ -153,9 +149,8 @@ async function syncWindow(g: HealthClient, from: string, to: string, warnings: s
 }
 
 // Write each completed month's values. A month a biomarker already has a reading for (on any
-// date in that month) is never written again; a different value there is reported in `changed`.
-// Sleep duration is not written while it disagrees with the hand-entered months (`held`); the
-// other metrics are.
+// date in that month) is not written again, except sleep duration: Google's value replaces a
+// different one there (keeping the reading's date), reported in `updated`.
 export async function publishMonths(cursor: string, today = pacificToday()): Promise<PublishResult> {
   const db = getDb();
   const before = completeBefore(cursor, today);
@@ -179,23 +174,16 @@ export async function publishMonths(cursor: string, today = pacificToday()): Pro
     .from(biomarkers)
     .where(inArray(biomarkers.name, BIOMARKERS.map((b) => b.name)));
   const ids = new Map(existing.map((b) => [b.name, b.id]));
-  const have = new Map<string, number>();
+  const have = new Map<string, { readingId: string; value: number }>();
   if (ids.size) {
     const rows = await db
-      .select({ biomarkerId: readings.biomarkerId, takenAt: readings.takenAt, value: readings.value })
+      .select({ readingId: readings.id, biomarkerId: readings.biomarkerId, takenAt: readings.takenAt, value: readings.value })
       .from(readings)
       .where(inArray(readings.biomarkerId, [...ids.values()]));
-    for (const r of rows) if (r.value != null) have.set(`${r.biomarkerId} ${r.takenAt.slice(0, 7)}`, Number(r.value));
+    for (const r of rows) if (r.value != null) have.set(`${r.biomarkerId} ${r.takenAt.slice(0, 7)}`, { readingId: r.readingId, value: Number(r.value) });
   }
 
-  const durationId = ids.get(BIOMARKERS[0].name);
-  const siteDurations = new Map<string, number>();
-  for (const [k, v] of have) {
-    const [id, month] = k.split(" ");
-    if (id === durationId) siteDurations.set(month, v);
-  }
-  const comparison = compareDurations(months, siteDurations);
-  const result: PublishResult = { before, held: !comparison.ok, comparison, added: [], changed: [], skipped: 0 };
+  const result: PublishResult = { before, added: [], updated: [], skipped: 0 };
 
   for (const b of BIOMARKERS) {
     if (ids.has(b.name) || !months.some((m) => m[b.key] != null)) continue;
@@ -212,19 +200,21 @@ export async function publishMonths(cursor: string, today = pacificToday()): Pro
     for (const b of BIOMARKERS) {
       const value = m[b.key];
       const id = ids.get(b.name);
-      if (value == null || !id || (result.held && b.key === "duration")) continue;
+      if (value == null || !id) continue;
       const old = have.get(`${id} ${m.month}`);
       if (old !== undefined) {
-        if (old === value) result.skipped++;
-        else result.changed.push(`${m.month} ${b.name}: site ${old}, Google ${value}`);
+        if (old.value !== value && b.key === "duration") {
+          await db.update(readings).set({ value: String(value) }).where(eq(readings.id, old.readingId));
+          result.updated.push(`${m.month} ${b.name}: ${old.value} -> ${value}`);
+        } else result.skipped++;
         continue;
       }
       inserts.push({ biomarkerId: id, value: String(value), takenAt: m.date, notes: b.note(m) });
       result.added.push(`${m.month} ${b.name} = ${value}`);
     }
   }
-  if (inserts.length) {
-    await db.insert(readings).values(inserts);
+  if (inserts.length) await db.insert(readings).values(inserts);
+  if (inserts.length || result.updated.length) {
     revalidatePath("/", "layout");
   }
   return result;

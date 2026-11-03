@@ -4,7 +4,6 @@ import {
   BIOMARKERS,
   MIN_DAYS,
   clock,
-  compareDurations,
   completeBefore,
   lastDayOfMonth,
   mapDaily,
@@ -140,25 +139,6 @@ test("every biomarker note renders from a month's values", () => {
     assert.match(b.note(oct), /Google Health/);
   }
   assert.match(BIOMARKERS.find((b) => b.key === "bedtime")!.note(oct), /11:00 PM/);
-});
-
-test("compareDurations holds publishing on a material median gap", () => {
-  const month = (m: string, duration: number) => ({ month: m, date: lastDayOfMonth(m), duration }) as never;
-  const site = new Map([
-    ["2026-08", 426],
-    ["2026-09", 435],
-    ["2026-07", 435],
-  ]);
-  const close = compareDurations([month("2026-07", 440), month("2026-08", 420), month("2026-09", 435), month("2026-10", 300)], site);
-  assert.equal(close.ok, true);
-  assert.equal(close.medianAbsDiff, 5);
-  assert.deepEqual(
-    close.rows.map((r) => r.diff),
-    [5, -6, 0],
-  );
-  const far = compareDurations([month("2026-07", 470), month("2026-08", 460), month("2026-09", 435)], site);
-  assert.equal(far.ok, false);
-  assert.equal(compareDurations([month("2026-10", 300)], site).ok, true); // nothing overlaps
 });
 
 test("nextWindow scans a year at a time, then rereads the last 3 days", () => {
