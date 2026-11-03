@@ -28,7 +28,7 @@ Anyone with the URL can view the site. Adding, editing, or deleting anything req
 - **Connect**: unlock editing, open the Sleep category, and click **Connect Google** (or **Reconnect Google**). The connect and callback routes (`src/app/api/google/`) refuse anyone without the password cookie, and the refresh token is kept server-side in the `google_auth` table.
 - **Backfill**: after connecting, the page runs **Sync now** until it has read every night Google has, a year per call so each call stays inside the function time limit (`sleep_synced_to` is the resumable cursor).
 - **Daily**: a Vercel cron (`vercel.json`) calls `/api/cron/sleep`, which rereads the last 3 days and publishes any completed month (Pacific time) still missing a value. The route only runs with Vercel's `Authorization: Bearer $CRON_SECRET`.
-- **Rules**: readings are dated the last day of the month. A month that already has a value (on any date in that month) is never overwritten; a different value is listed on the Sleep page instead. Sleep duration publishing (only that metric) is held while the computed sleep duration disagrees with the hand-entered months (median gap over 10 min). Definitions are in `src/lib/sleep.ts`.
+- **Rules**: readings are dated the last day of the month. A month that already has a value (on any date in that month) is not written again, except sleep duration: Google's value replaces a different existing one, including hand-entered months. Definitions are in `src/lib/sleep.ts`.
 
 ## Stack
 

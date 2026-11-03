@@ -25,8 +25,8 @@ function summary(r: SyncResult) {
   const p = r.published;
   if (r.more) return `Read nights through ${r.syncedTo}; more to go`;
   if (!p) return "Synced";
-  const added = `Synced; ${p.added.length} new monthly value${p.added.length === 1 ? "" : "s"}`;
-  return p.held ? `${added}; sleep duration held: it disagrees with the hand-entered months` : added;
+  const n = (k: number) => `${k} monthly value${k === 1 ? "" : "s"}`;
+  return `Synced; ${n(p.added?.length ?? 0)} added${p.updated?.length ? `, ${n(p.updated.length)} updated` : ""}`;
 }
 
 export function SleepSyncPanel({ status, googleParam }: { status: SleepSyncStatus; googleParam: { google?: string; reason?: string } }) {
@@ -44,7 +44,7 @@ export function SleepSyncPanel({ status, googleParam }: { status: SleepSyncStatu
         runs++;
         router.refresh();
       } while (r.more && !r.error && runs < MAX_RUNS);
-      if (r.error || r.published?.held) toast.error(summary(r));
+      if (r.error) toast.error(summary(r));
       else toast.success(summary(r));
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Sync failed");
@@ -68,8 +68,6 @@ export function SleepSyncPanel({ status, googleParam }: { status: SleepSyncStatu
 
   const last = status.lastSync;
   const needsReconnect = status.connected && (!status.hasSleepScope || last?.error === "reconnect");
-  const comparison = last?.published?.held ? last.published.comparison : null;
-  const changed = last?.published?.changed ?? [];
 
   return (
     <div className="mb-8 rounded-lg border p-4 text-sm">
@@ -102,48 +100,6 @@ export function SleepSyncPanel({ status, googleParam }: { status: SleepSyncStatu
           )}
         </div>
       </div>
-
-      {comparison && (
-        <div className="mt-4">
-          <p className="mb-2 text-destructive">
-            Computed sleep duration differs from the hand-entered months by a median of {comparison.medianAbsDiff} min,
-            so sleep duration is not published until the definition is settled. The other metrics still are.
-          </p>
-          <table className="text-xs">
-            <thead className="text-muted-foreground">
-              <tr>
-                <th className="pr-4 text-left font-normal">Month</th>
-                <th className="pr-4 text-right font-normal">Site</th>
-                <th className="pr-4 text-right font-normal">Google</th>
-                <th className="text-right font-normal">Diff</th>
-              </tr>
-            </thead>
-            <tbody>
-              {comparison.rows.map((r) => (
-                <tr key={r.month}>
-                  <td className="pr-4">{r.month}</td>
-                  <td className="pr-4 text-right">{r.site}</td>
-                  <td className="pr-4 text-right">{r.google}</td>
-                  <td className="text-right">{r.diff > 0 ? `+${r.diff}` : r.diff}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
-
-      {changed.length > 0 && (
-        <details className="mt-3 text-muted-foreground">
-          <summary>
-            {changed.length} month{changed.length === 1 ? "" : "s"} where Google now differs from the site (kept the site&apos;s)
-          </summary>
-          <ul className="mt-1 list-disc pl-5 text-xs">
-            {changed.map((c) => (
-              <li key={c}>{c}</li>
-            ))}
-          </ul>
-        </details>
-      )}
 
       {last && last.warnings.length > 0 && (
         <details className="mt-3 text-muted-foreground">

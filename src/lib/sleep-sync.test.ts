@@ -106,8 +106,7 @@ test("backfill publishes missing months, keeps hand-entered ones, then stays ide
   assert.equal(first.more, false);
   assert.equal(first.syncedTo, "2026-11-03");
   assert.equal(g.calls[0], "2010-01-01..2011-01-02");
-  assert.equal(first.published?.held, false);
-  assert.deepEqual(first.published?.comparison.rows.map((r) => r.diff), [0, 0]);
+  assert.deepEqual(first.published?.updated, []);
   assert.equal(first.published?.skipped, 2);
 
   const { out, categories } = await readingsByName();
@@ -119,12 +118,12 @@ test("backfill publishes missing months, keeps hand-entered ones, then stays ide
   assert.deepEqual(out["Average Wake Time (Monthly)"], ["2026-08-31=6.5", "2026-09-30=6.5", "2026-10-31=6.5"]);
   assert.deepEqual(out["Sleep Consistency (Monthly)"], ["2026-08-31=0", "2026-09-30=0", "2026-10-31=0"]);
 
-  // Next day: rereads the last 3 days only, adds nothing, and reports (doesn't overwrite) a changed month.
+  // Next day: rereads the last 3 days only, adds nothing, and replaces a changed month's duration.
   const again = await runSleepSync({ today: "2026-11-03", client: fakeGoogle((d) => (d === "2026-10-31" ? 451 : monthAsleep(d))) });
   assert.deepEqual(again.windows.map((w) => `${w.from}..${w.to}`), ["2026-10-31..2026-11-04"]);
   assert.deepEqual(again.published?.added, []);
-  assert.deepEqual(again.published?.changed, ["2026-10 Average Daily Sleep Duration (Monthly): site 420, Google 421"]);
-  assert.deepEqual((await readingsByName()).out[DURATION], ["2026-08-31=426", "2026-09-30=435", "2026-10-31=420"]);
+  assert.deepEqual(again.published?.updated, ["2026-10 Average Daily Sleep Duration (Monthly): 420 -> 421"]);
+  assert.deepEqual((await readingsByName()).out[DURATION], ["2026-08-31=426", "2026-09-30=435", "2026-10-31=421"]);
 
   const [auth] = await db.select().from(googleAuth);
   assert.equal(auth.sleepSyncedTo, "2026-11-04");
@@ -138,13 +137,18 @@ test("a night Google no longer returns is dropped from its window", async () => 
   assert.deepEqual(left, []);
 });
 
-test("only sleep duration is held when computed durations disagree with the hand-entered months", async () => {
+test("Google's sleep duration replaces differing hand-entered months", async () => {
   await seedHandEntered({ "2026-08-31": 380, "2026-09-30": 390 });
+  await db.update(readings).set({ notes: "Typed in from the old spreadsheet" });
   const r = await runSleepSync({ today: TODAY, client: fakeGoogle(monthAsleep), budgetMs: 60_000 });
-  assert.equal(r.published?.held, true);
-  assert.equal(r.published?.comparison.medianAbsDiff, 45.5);
+  assert.equal(r.published?.updated.length, 2);
+  const notes = await db.select({ takenAt: readings.takenAt, notes: readings.notes }).from(readings).where(eq(readings.takenAt, "2026-08-31"));
+  const aug = notes.find((n) => n.notes?.startsWith("Mean minutes asleep"));
+  assert.ok(aug, `August duration note was not replaced: ${JSON.stringify(notes)}`);
+  assert.match(aug.notes!, /over 31 nights' main sleep.*Google Health\.$/);
+  assert.ok(!notes.some((n) => n.notes === "Typed in from the old spreadsheet"));
   const { out } = await readingsByName();
-  assert.deepEqual(out[DURATION], ["2026-08-31=380", "2026-09-30=390"]);
+  assert.deepEqual(out[DURATION], ["2026-08-31=426", "2026-09-30=435", "2026-10-31=420"]);
   assert.deepEqual(out["Resting Heart Rate (Monthly)"], ["2026-08-31=50", "2026-09-30=50", "2026-10-31=50"]);
   assert.deepEqual(out["Heart Rate Variability (Monthly)"], ["2026-08-31=40", "2026-09-30=40", "2026-10-31=40"]);
   assert.deepEqual(out["Sleep Consistency (Monthly)"], ["2026-08-31=0", "2026-09-30=0", "2026-10-31=0"]);
@@ -152,13 +156,12 @@ test("only sleep duration is held when computed durations disagree with the hand
   assert.deepEqual(out["Average Wake Time (Monthly)"], ["2026-08-31=6.5", "2026-09-30=6.5", "2026-10-31=6.5"]);
 });
 
-test("a month hand-entered on a date other than its last day is not written again", async () => {
+test("a month hand-entered on a date other than its last day keeps its date", async () => {
   await seedHandEntered({ "2026-08-15": 426, "2026-10-01": 435 });
   const r = await runSleepSync({ today: TODAY, client: fakeGoogle(monthAsleep), budgetMs: 60_000 });
-  assert.deepEqual(r.published?.comparison.rows.map((row) => `${row.month} ${row.diff}`), ["2026-08 0", "2026-10 -15"]);
   assert.equal(r.published?.skipped, 1);
-  assert.deepEqual(r.published?.changed, ["2026-10 Average Daily Sleep Duration (Monthly): site 435, Google 420"]);
-  assert.deepEqual((await readingsByName()).out[DURATION], ["2026-08-15=426", "2026-09-30=435", "2026-10-01=435"]);
+  assert.deepEqual(r.published?.updated, ["2026-10 Average Daily Sleep Duration (Monthly): 435 -> 420"]);
+  assert.deepEqual((await readingsByName()).out[DURATION], ["2026-08-15=426", "2026-09-30=435", "2026-10-01=420"]);
 });
 
 test("a small time budget stops after one window and resumes from the cursor", async () => {
