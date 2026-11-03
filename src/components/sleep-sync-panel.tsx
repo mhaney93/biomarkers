@@ -25,8 +25,8 @@ function summary(r: SyncResult) {
   const p = r.published;
   if (r.more) return `Read nights through ${r.syncedTo}; more to go`;
   if (!p) return "Synced";
-  if (p.held) return "Synced, but nothing was published: sleep duration disagrees with the hand-entered months";
-  return `Synced; ${p.added.length} new monthly value${p.added.length === 1 ? "" : "s"}`;
+  const added = `Synced; ${p.added.length} new monthly value${p.added.length === 1 ? "" : "s"}`;
+  return p.held ? `${added}; sleep duration held: it disagrees with the hand-entered months` : added;
 }
 
 export function SleepSyncPanel({ status, googleParam }: { status: SleepSyncStatus; googleParam: { google?: string; reason?: string } }) {
@@ -107,7 +107,7 @@ export function SleepSyncPanel({ status, googleParam }: { status: SleepSyncStatu
         <div className="mt-4">
           <p className="mb-2 text-destructive">
             Computed sleep duration differs from the hand-entered months by a median of {comparison.medianAbsDiff} min,
-            so nothing is published until the definition is settled.
+            so sleep duration is not published until the definition is settled. The other metrics still are.
           </p>
           <table className="text-xs">
             <thead className="text-muted-foreground">

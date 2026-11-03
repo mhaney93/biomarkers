@@ -129,13 +129,8 @@ async function syncWindow(g: HealthClient, from: string, to: string, warnings: s
           bedMinute: excluded("bed_minute"),
           wakeMinute: excluded("wake_minute"),
           minutesAsleep: excluded("minutes_asleep"),
-          minutesInPeriod: excluded("minutes_in_period"),
           mainSleep: excluded("main_sleep"),
           nap: excluded("nap"),
-          sleepType: excluded("sleep_type"),
-          platform: excluded("platform"),
-          device: excluded("device"),
-          raw: excluded("raw"),
           syncedAt: sql`now()`,
         },
       });
@@ -157,9 +152,10 @@ async function syncWindow(g: HealthClient, from: string, to: string, warnings: s
   return { from, to, sessions: unique.length, days: days.length };
 }
 
-// Write each completed month's values. A month a biomarker already has a reading for is never
-// written again; a different value there is reported in `changed`. Nothing is written while the
-// computed sleep duration disagrees with the hand-entered months (`held`).
+// Write each completed month's values. A month a biomarker already has a reading for (on any
+// date in that month) is never written again; a different value there is reported in `changed`.
+// Sleep duration is not written while it disagrees with the hand-entered months (`held`); the
+// other metrics are.
 export async function publishMonths(cursor: string, today = pacificToday()): Promise<PublishResult> {
   const db = getDb();
   const before = completeBefore(cursor, today);
@@ -189,18 +185,17 @@ export async function publishMonths(cursor: string, today = pacificToday()): Pro
       .select({ biomarkerId: readings.biomarkerId, takenAt: readings.takenAt, value: readings.value })
       .from(readings)
       .where(inArray(readings.biomarkerId, [...ids.values()]));
-    for (const r of rows) if (r.value != null) have.set(`${r.biomarkerId} ${r.takenAt}`, Number(r.value));
+    for (const r of rows) if (r.value != null) have.set(`${r.biomarkerId} ${r.takenAt.slice(0, 7)}`, Number(r.value));
   }
 
   const durationId = ids.get(BIOMARKERS[0].name);
   const siteDurations = new Map<string, number>();
   for (const [k, v] of have) {
-    const [id, date] = k.split(" ");
-    if (id === durationId) siteDurations.set(date, v);
+    const [id, month] = k.split(" ");
+    if (id === durationId) siteDurations.set(month, v);
   }
   const comparison = compareDurations(months, siteDurations);
   const result: PublishResult = { before, held: !comparison.ok, comparison, added: [], changed: [], skipped: 0 };
-  if (result.held) return result;
 
   for (const b of BIOMARKERS) {
     if (ids.has(b.name) || !months.some((m) => m[b.key] != null)) continue;
@@ -217,8 +212,8 @@ export async function publishMonths(cursor: string, today = pacificToday()): Pro
     for (const b of BIOMARKERS) {
       const value = m[b.key];
       const id = ids.get(b.name);
-      if (value == null || !id) continue;
-      const old = have.get(`${id} ${m.date}`);
+      if (value == null || !id || (result.held && b.key === "duration")) continue;
+      const old = have.get(`${id} ${m.month}`);
       if (old !== undefined) {
         if (old === value) result.skipped++;
         else result.changed.push(`${m.month} ${b.name}: site ${old}, Google ${value}`);

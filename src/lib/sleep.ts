@@ -11,7 +11,7 @@ export const WINDOW_DAYS = 366;
 export const OVERLAP_DAYS = 3;
 // A month with fewer days of a metric than this is not published for that metric.
 export const MIN_DAYS = 10;
-// Publishing is held while computed durations differ from the hand-entered months by more than
+// Sleep duration publishing is held while computed durations differ from the hand-entered months by more than
 // this (median absolute difference, minutes), so a definitional gap is reported, not written.
 export const MAX_MEDIAN_DIFF = 10;
 
@@ -74,13 +74,8 @@ export type SleepSession = {
   bedMinute: number;
   wakeMinute: number;
   minutesAsleep: number | null;
-  minutesInPeriod: number | null;
   mainSleep: boolean | null;
   nap: boolean;
-  sleepType: string | null;
-  platform: string | null;
-  device: string | null;
-  raw: unknown;
 };
 
 export type DailyHealth = { date: string; restingHr: number | null; hrvMs: number | null };
@@ -123,15 +118,8 @@ export function mapSleep(dp: SleepDataPoint): SleepSession {
     bedMinute: Math.round(start.minutes),
     wakeMinute: Math.round(end.minutes),
     minutesAsleep: int(s.summary?.minutesAsleep),
-    minutesInPeriod:
-      int(s.summary?.minutesInSleepPeriod) ?? Math.round((Date.parse(iv.endTime) - Date.parse(iv.startTime)) / 60e3),
     mainSleep: s.metadata?.mainSleep ?? null,
     nap: s.metadata?.nap ?? false,
-    sleepType: s.type ?? null,
-    platform: dp.dataSource?.platform ?? null,
-    device: dp.dataSource?.device?.displayName ?? null,
-    // Stages are out of scope and large; keep the rest for checking definitions later.
-    raw: { dataSource: dp.dataSource, metadata: s.metadata, summary: s.summary, interval: iv },
   };
 }
 
@@ -323,12 +311,12 @@ export type DurationComparison = {
   ok: boolean;
 };
 
-// Computed monthly sleep duration against the hand-entered values (date -> minutes) for the
+// Computed monthly sleep duration against the hand-entered values (YYYY-MM -> minutes) for the
 // months both have. `ok` is false when they disagree by more than MAX_MEDIAN_DIFF.
-export function compareDurations(months: MonthValues[], siteByDate: Map<string, number>): DurationComparison {
+export function compareDurations(months: MonthValues[], siteByMonth: Map<string, number>): DurationComparison {
   const rows = months
-    .filter((m) => m.duration != null && siteByDate.has(m.date))
-    .map((m) => ({ month: m.month, site: siteByDate.get(m.date)!, google: m.duration!, diff: m.duration! - siteByDate.get(m.date)! }));
+    .filter((m) => m.duration != null && siteByMonth.has(m.month))
+    .map((m) => ({ month: m.month, site: siteByMonth.get(m.month)!, google: m.duration!, diff: m.duration! - siteByMonth.get(m.month)! }));
   if (!rows.length) return { rows, medianAbsDiff: null, ok: true };
   const abs = rows.map((r) => Math.abs(r.diff)).sort((a, b) => a - b);
   const mid = abs.length >> 1;

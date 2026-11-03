@@ -1,6 +1,5 @@
 // Google OAuth and the Google Health API (v4) client for the sleep sync. Read-only scopes only.
-// Client credentials come from env: GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET (and optionally
-// GOOGLE_REDIRECT_URI to pin the callback URL).
+// Client credentials come from env: GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET.
 import crypto from "node:crypto";
 import type { DailyHrvPoint, DailyRestingHeartRatePoint, SleepDataPoint } from "./sleep";
 
@@ -20,7 +19,7 @@ export function googleConfigured() {
 }
 
 export function redirectUri(origin: string) {
-  return process.env.GOOGLE_REDIRECT_URI || `${origin}/api/google/callback`;
+  return `${origin}/api/google/callback`;
 }
 
 // OAuth state = timestamp.nonce.hmac, keyed by `key` (derived from the app password), so the

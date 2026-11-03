@@ -51,13 +51,8 @@ export const sleepSessions = pgTable(
     bedMinute: integer("bed_minute").notNull(),
     wakeMinute: integer("wake_minute").notNull(),
     minutesAsleep: integer("minutes_asleep"),
-    minutesInPeriod: integer("minutes_in_period"),
     mainSleep: boolean("main_sleep"),
     nap: boolean("nap").notNull().default(false),
-    sleepType: text("sleep_type"),
-    platform: text("platform"),
-    device: text("device"),
-    raw: jsonb("raw"),
     syncedAt: timestamp("synced_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [index("sleep_sessions_wake_date_idx").on(table.wakeDate)]

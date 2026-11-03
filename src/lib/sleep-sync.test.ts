@@ -138,14 +138,27 @@ test("a night Google no longer returns is dropped from its window", async () => 
   assert.deepEqual(left, []);
 });
 
-test("publishing is held when computed durations disagree with the hand-entered months", async () => {
+test("only sleep duration is held when computed durations disagree with the hand-entered months", async () => {
   await seedHandEntered({ "2026-08-31": 380, "2026-09-30": 390 });
   const r = await runSleepSync({ today: TODAY, client: fakeGoogle(monthAsleep), budgetMs: 60_000 });
   assert.equal(r.published?.held, true);
   assert.equal(r.published?.comparison.medianAbsDiff, 45.5);
   const { out } = await readingsByName();
-  assert.deepEqual(Object.keys(out), [DURATION]);
-  assert.equal(out[DURATION].length, 2);
+  assert.deepEqual(out[DURATION], ["2026-08-31=380", "2026-09-30=390"]);
+  assert.deepEqual(out["Resting Heart Rate (Monthly)"], ["2026-08-31=50", "2026-09-30=50", "2026-10-31=50"]);
+  assert.deepEqual(out["Heart Rate Variability (Monthly)"], ["2026-08-31=40", "2026-09-30=40", "2026-10-31=40"]);
+  assert.deepEqual(out["Sleep Consistency (Monthly)"], ["2026-08-31=0", "2026-09-30=0", "2026-10-31=0"]);
+  assert.deepEqual(out["Average Bedtime (Monthly)"], ["2026-08-31=23", "2026-09-30=23", "2026-10-31=23"]);
+  assert.deepEqual(out["Average Wake Time (Monthly)"], ["2026-08-31=6.5", "2026-09-30=6.5", "2026-10-31=6.5"]);
+});
+
+test("a month hand-entered on a date other than its last day is not written again", async () => {
+  await seedHandEntered({ "2026-08-15": 426, "2026-10-01": 435 });
+  const r = await runSleepSync({ today: TODAY, client: fakeGoogle(monthAsleep), budgetMs: 60_000 });
+  assert.deepEqual(r.published?.comparison.rows.map((row) => `${row.month} ${row.diff}`), ["2026-08 0", "2026-10 -15"]);
+  assert.equal(r.published?.skipped, 1);
+  assert.deepEqual(r.published?.changed, ["2026-10 Average Daily Sleep Duration (Monthly): site 435, Google 420"]);
+  assert.deepEqual((await readingsByName()).out[DURATION], ["2026-08-15=426", "2026-09-30=435", "2026-10-01=435"]);
 });
 
 test("a small time budget stops after one window and resumes from the cursor", async () => {

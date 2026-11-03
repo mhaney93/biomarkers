@@ -44,11 +44,8 @@ test("mapSleep reads civil times, string int64s and the wake date", () => {
   assert.equal(s.bedMinute, 23 * 60 + 43); // 23:42:30 rounds up
   assert.equal(s.wakeMinute, 6 * 60 + 51);
   assert.equal(s.minutesAsleep, 391);
-  assert.equal(s.minutesInPeriod, 428);
   assert.equal(s.mainSleep, true);
   assert.equal(s.nap, false);
-  assert.equal(s.device, "Pixel Watch 4");
-  assert.equal("stages" in (s.raw as object), false);
 });
 
 test("mapSleep falls back to the UTC offset when civil times are missing", () => {
@@ -148,9 +145,9 @@ test("every biomarker note renders from a month's values", () => {
 test("compareDurations holds publishing on a material median gap", () => {
   const month = (m: string, duration: number) => ({ month: m, date: lastDayOfMonth(m), duration }) as never;
   const site = new Map([
-    ["2026-08-31", 426],
-    ["2026-09-30", 435],
-    ["2026-07-31", 435],
+    ["2026-08", 426],
+    ["2026-09", 435],
+    ["2026-07", 435],
   ]);
   const close = compareDurations([month("2026-07", 440), month("2026-08", 420), month("2026-09", 435), month("2026-10", 300)], site);
   assert.equal(close.ok, true);

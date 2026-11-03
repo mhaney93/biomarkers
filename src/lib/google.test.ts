@@ -14,7 +14,6 @@ test("OAuth state verifies with its key and expires after 10 minutes", () => {
 
 test("authUrl asks for read-only sleep and health-metric scopes and a refresh token", () => {
   process.env.GOOGLE_CLIENT_ID = "client";
-  delete process.env.GOOGLE_REDIRECT_URI;
   const url = new URL(authUrl("https://biomarkers-kappa.vercel.app", "s"));
   assert.equal(url.searchParams.get("redirect_uri"), "https://biomarkers-kappa.vercel.app/api/google/callback");
   assert.equal(url.searchParams.get("access_type"), "offline");
