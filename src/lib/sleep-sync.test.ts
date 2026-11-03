@@ -139,8 +139,14 @@ test("a night Google no longer returns is dropped from its window", async () => 
 
 test("Google's sleep duration replaces differing hand-entered months", async () => {
   await seedHandEntered({ "2026-08-31": 380, "2026-09-30": 390 });
+  await db.update(readings).set({ notes: "Typed in from the old spreadsheet" });
   const r = await runSleepSync({ today: TODAY, client: fakeGoogle(monthAsleep), budgetMs: 60_000 });
   assert.equal(r.published?.updated.length, 2);
+  const notes = await db.select({ takenAt: readings.takenAt, notes: readings.notes }).from(readings).where(eq(readings.takenAt, "2026-08-31"));
+  const aug = notes.find((n) => n.notes?.startsWith("Mean minutes asleep"));
+  assert.ok(aug, `August duration note was not replaced: ${JSON.stringify(notes)}`);
+  assert.match(aug.notes!, /over 31 nights' main sleep.*Google Health\.$/);
+  assert.ok(!notes.some((n) => n.notes === "Typed in from the old spreadsheet"));
   const { out } = await readingsByName();
   assert.deepEqual(out[DURATION], ["2026-08-31=426", "2026-09-30=435", "2026-10-31=420"]);
   assert.deepEqual(out["Resting Heart Rate (Monthly)"], ["2026-08-31=50", "2026-09-30=50", "2026-10-31=50"]);

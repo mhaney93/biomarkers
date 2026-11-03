@@ -150,7 +150,7 @@ async function syncWindow(g: HealthClient, from: string, to: string, warnings: s
 
 // Write each completed month's values. A month a biomarker already has a reading for (on any
 // date in that month) is not written again, except sleep duration: Google's value replaces a
-// different one there (keeping the reading's date), reported in `updated`.
+// different one there (keeping the reading's date; its note is replaced), reported in `updated`.
 export async function publishMonths(cursor: string, today = pacificToday()): Promise<PublishResult> {
   const db = getDb();
   const before = completeBefore(cursor, today);
@@ -204,7 +204,7 @@ export async function publishMonths(cursor: string, today = pacificToday()): Pro
       const old = have.get(`${id} ${m.month}`);
       if (old !== undefined) {
         if (old.value !== value && b.key === "duration") {
-          await db.update(readings).set({ value: String(value) }).where(eq(readings.id, old.readingId));
+          await db.update(readings).set({ value: String(value), notes: b.note(m) }).where(eq(readings.id, old.readingId));
           result.updated.push(`${m.month} ${b.name}: ${old.value} -> ${value}`);
         } else result.skipped++;
         continue;
