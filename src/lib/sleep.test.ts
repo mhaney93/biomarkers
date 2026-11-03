@@ -89,12 +89,12 @@ function session(date: string, bed: number, wake: number, asleep: number, extra:
   };
 }
 
-test("nights sums naps, counts a duplicate session once, and wraps after-midnight bedtimes", () => {
+test("nights uses the main sleep only (naps excluded), counts a duplicate session once, and wraps after-midnight bedtimes", () => {
   const main = session("2026-10-02", 30, 7 * 60, 400);
   const dup = { ...main, minutesAsleep: 390, mainSleep: false }; // same night from another source
   const nap = session("2026-10-02", 14 * 60, 14 * 60 + 40, 20, { mainSleep: false, nap: true });
   const napOnly = session("2026-10-03", 14 * 60, 14 * 60 + 40, 20, { mainSleep: false, nap: true });
-  assert.deepEqual(nights([main, dup, nap, napOnly]), [{ date: "2026-10-02", asleep: 420, bed: 1470, wake: 420 }]);
+  assert.deepEqual(nights([main, dup, nap, napOnly]), [{ date: "2026-10-02", asleep: 400, bed: 1470, wake: 420 }]);
 });
 
 test("monthly averages, SDs, consistency and the MIN_DAYS threshold", () => {

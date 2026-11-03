@@ -152,9 +152,9 @@ export type Night = { date: string; asleep: number; bed: number; wake: number };
 const overlaps = (a: NightInput, b: NightInput) =>
   Date.parse(a.startTime) < Date.parse(b.endTime) && Date.parse(b.startTime) < Date.parse(a.endTime);
 
-// One entry per wake date: minutes asleep summed over that date's sessions (naps included; the
-// same session recorded by two sources counted once), and the bedtime and wake time of its main
-// sleep. Bedtime minutes run past 24 h for bedtimes before noon (00:30 is 1470, after 23:30's 1410).
+// One entry per wake date from its main sleep: minutes asleep, bedtime and wake time. Naps are
+// excluded (the owner's choice: it tracks his hand-entered months best), and the same night recorded
+// by two sources counts once. Bedtime minutes run past 24 h for bedtimes before noon (00:30 is 1470, after 23:30's 1410).
 export function nights(sessions: NightInput[]): Night[] {
   const byDate = new Map<string, NightInput[]>();
   for (const s of sessions) byDate.set(s.wakeDate, [...(byDate.get(s.wakeDate) ?? []), s]);
@@ -167,7 +167,7 @@ export function nights(sessions: NightInput[]): Night[] {
     if (main.nap) continue; // naps only: says nothing about bed and wake times
     out.push({
       date,
-      asleep: kept.reduce((a, s) => a + (s.minutesAsleep ?? 0), 0),
+      asleep: main.minutesAsleep ?? 0,
       bed: main.bedMinute < 12 * 60 ? main.bedMinute + 24 * 60 : main.bedMinute,
       wake: main.wakeMinute,
     });
@@ -264,7 +264,7 @@ export const BIOMARKERS: SleepBiomarker[] = [
     unit: null,
     valueType: "duration",
     note: (m) =>
-      `Mean minutes asleep per day over ${m.nights} days with sleep (naps included, awake time excluded). Google Health.`,
+      `Mean minutes asleep over ${m.nights} nights' main sleep (naps and awake time excluded). Google Health.`,
   },
   {
     key: "consistency",
