@@ -65,3 +65,35 @@ export const dailyHealth = pgTable("daily_health", {
   hrvMs: real("hrv_ms"),
   syncedAt: timestamp("synced_at", { withTimezone: true }).notNull().defaultNow(),
 });
+
+// The owner's myAir (ResMed CPAP) sign-in state for the myAir sync (one row, id 1). The username
+// and password stay in env; this holds what Okta hands back. Never sent to the browser.
+export const myairAuth = pgTable("myair_auth", {
+  id: integer("id").primaryKey(),
+  // Okta's remembered-device cookie: lets an account that uses emailed codes skip them.
+  deviceToken: text("device_token"),
+  accessToken: text("access_token"),
+  idToken: text("id_token"),
+  tokenExpiresAt: timestamp("token_expires_at", { withTimezone: true }),
+  // A sign-in waiting for the emailed code.
+  mfaStateToken: text("mfa_state_token"),
+  mfaVerifyUrl: text("mfa_verify_url"),
+  mfaSentAt: timestamp("mfa_sent_at", { withTimezone: true }),
+  // The backfill has read every month from this one (YYYY-MM-01) to now; null until it starts.
+  backfillFrom: date("backfill_from", { mode: "string" }),
+  backfillEmptyMonths: integer("backfill_empty_months").notNull().default(0),
+  backfillDone: boolean("backfill_done").notNull().default(false),
+  lastSyncAt: timestamp("last_sync_at", { withTimezone: true }),
+  lastSync: jsonb("last_sync"),
+});
+
+// Nightly CPAP records from myAir, one per night (myAir's startDate).
+export const cpapNights = pgTable("cpap_nights", {
+  date: date("date", { mode: "string" }).primaryKey(),
+  usageMinutes: integer("usage_minutes"),
+  ahi: real("ahi"),
+  leak: real("leak"),
+  maskPairs: integer("mask_pairs"),
+  score: integer("score"),
+  syncedAt: timestamp("synced_at", { withTimezone: true }).notNull().defaultNow(),
+});
