@@ -7,6 +7,7 @@ import { revalidatePath } from "next/cache";
 import { cookies } from "next/headers";
 import { AUTH_COOKIE, getAuthToken, getExpectedToken, requireAuth } from "@/lib/auth";
 import { toTotalMinutes } from "@/lib/duration";
+import { runSleepSync } from "@/lib/sleep-sync";
 
 function resolveReadingValue(formData: FormData): { value: string | null; textValue: string | null } {
   if (formData.has("textValue")) {
@@ -180,4 +181,13 @@ export async function deleteReading(id: string, biomarkerId: string) {
   await getDb().delete(readings).where(and(eq(readings.id, id)));
   revalidatePath("/");
   revalidatePath(`/biomarkers/${biomarkerId}`);
+}
+
+// One run of the sleep sync from the Sleep page ("Sync now" and the backfill after connecting).
+// The page calls it again while `more` is true.
+export async function syncSleepNow() {
+  await requireAuth();
+  const result = await runSleepSync();
+  revalidatePath("/categories/Sleep");
+  return result;
 }
