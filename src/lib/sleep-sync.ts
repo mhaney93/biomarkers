@@ -1,6 +1,6 @@
 // The sleep sync: pull nights and daily RHR / HRV from Google Health into sleep_sessions and
 // daily_health, a year-long window at a time from a resumable cursor, then write each completed
-// month's values to the "Sleep" biomarkers. Run by the daily cron and the "Sync now" button.
+// month's values (and the current month's average so far) to the "Sleep" biomarkers. Run by the daily cron and the "Sync now" button.
 import { and, eq, gte, inArray, lt, notInArray, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { getDb } from "@/db";
@@ -8,7 +8,10 @@ import { biomarkers, dailyHealth, googleAuth, readings, sleepSessions } from "@/
 import {
   BIOMARKERS,
   CATEGORY,
+  PARTIAL_NOTE,
   PRE_SLEEP_DAYS,
+  SYNC_VERSION,
+  readingNote,
   addDays,
   completeBefore,
   mapDaily,
@@ -180,7 +183,7 @@ async function syncWindow(
   return { from, to, sessions: unique.length, days: days.length };
 }
 
-// Write each completed month's values. A month a biomarker already has a reading for (on any
+// Write each completed month's values, and the current month's average so far (refreshed each sync). A month a biomarker already has a reading for (on any
 // date in that month) is not written again, except sleep duration: Google's value replaces a
 // different one there (keeping the reading's date; its note is replaced), reported in `updated`.
 export async function publishMonths(cursor: string, today = pacificToday()): Promise<PublishResult> {
@@ -210,20 +213,24 @@ export async function publishMonths(cursor: string, today = pacificToday()): Pro
       vo2Max: dailyHealth.vo2Max,
     })
     .from(dailyHealth);
-  const months = monthly(sessions, daily, before);
+  const months = monthly(sessions, daily, before, today.slice(0, 7));
 
   const existing = await db
     .select({ id: biomarkers.id, name: biomarkers.name })
     .from(biomarkers)
     .where(inArray(biomarkers.name, BIOMARKERS.map((b) => b.name)));
   const ids = new Map(existing.map((b) => [b.name, b.id]));
-  const have = new Map<string, { readingId: string; value: number }>();
+  const have = new Map<string, { readingId: string; value: number; partial: boolean }>();
   if (ids.size) {
     const rows = await db
-      .select({ readingId: readings.id, biomarkerId: readings.biomarkerId, takenAt: readings.takenAt, value: readings.value })
+      .select({ readingId: readings.id, biomarkerId: readings.biomarkerId, takenAt: readings.takenAt, value: readings.value, notes: readings.notes })
       .from(readings)
       .where(inArray(readings.biomarkerId, [...ids.values()]));
-    for (const r of rows) if (r.value != null) have.set(`${r.biomarkerId} ${r.takenAt.slice(0, 7)}`, { readingId: r.readingId, value: Number(r.value) });
+    for (const r of rows) if (r.value != null) have.set(`${r.biomarkerId} ${r.takenAt.slice(0, 7)}`, {
+        readingId: r.readingId,
+        value: Number(r.value),
+        partial: !!r.notes?.startsWith(PARTIAL_NOTE),
+      });
   }
 
   const result: PublishResult = { before, added: [], updated: [], skipped: 0 };
@@ -246,14 +253,21 @@ export async function publishMonths(cursor: string, today = pacificToday()): Pro
       if (value == null || !id) continue;
       const old = have.get(`${id} ${m.month}`);
       if (old !== undefined) {
-        if (old.value !== value && b.key === "duration") {
-          await db.update(readings).set({ value: String(value), notes: b.note(m) }).where(eq(readings.id, old.readingId));
+        // A month-to-date reading we wrote is refreshed on every sync (and made final when the month ends).
+        if (old.partial) {
+          await db
+            .update(readings)
+            .set({ value: String(value), takenAt: m.date, notes: readingNote(b, m) })
+            .where(eq(readings.id, old.readingId));
+          if (old.value !== value || !m.partial) result.updated.push(`${m.month} ${b.name}: ${old.value} -> ${value}`);
+        } else if (old.value !== value && b.key === "duration" && !m.partial) {
+          await db.update(readings).set({ value: String(value), notes: readingNote(b, m) }).where(eq(readings.id, old.readingId));
           result.updated.push(`${m.month} ${b.name}: ${old.value} -> ${value}`);
         } else result.skipped++;
         continue;
       }
-      inserts.push({ biomarkerId: id, value: String(value), takenAt: m.date, notes: b.note(m) });
-      result.added.push(`${m.month} ${b.name} = ${value}`);
+      inserts.push({ biomarkerId: id, value: String(value), takenAt: m.date, notes: readingNote(b, m) });
+      result.added.push(`${m.month} ${b.name} = ${value}${m.partial ? " (month to date)" : ""}`);
     }
   }
   if (inserts.length) await db.insert(readings).values(inserts);
@@ -277,6 +291,12 @@ export async function runSleepSync({
   const [row] = await db.select().from(googleAuth).where(eq(googleAuth.id, 1));
   if (!row) return { ...result, error: "not-connected", message: "Google is not connected" };
   let cursor = row.sleepSyncedTo;
+  if (row.sleepSyncVersion < SYNC_VERSION) {
+    // New data types since the last scan: start over from the beginning (the cursor then resumes
+    // across runs, so the version is recorded together with the reset).
+    cursor = null;
+    await db.update(googleAuth).set({ sleepSyncedTo: null, sleepSyncVersion: SYNC_VERSION }).where(eq(googleAuth.id, 1));
+  }
   result.syncedTo = cursor;
   try {
     if (!hasScope(row.scope, SLEEP_SCOPE)) throw new ReconnectError("The Google grant does not include sleep data");

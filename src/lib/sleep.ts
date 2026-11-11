@@ -11,6 +11,12 @@ export const WINDOW_DAYS = 366;
 export const OVERLAP_DAYS = 3;
 // A month with fewer days of a metric than this is not published for that metric.
 export const MIN_DAYS = 10;
+// The in-progress month is published as a month-to-date average from this many days.
+export const PARTIAL_MIN_DAYS = 3;
+// Bump when the set of Google Health data types the sync reads changes: the next sync then rescans
+// all history once so the new metrics are backfilled.
+export const SYNC_VERSION = 2;
+export const PARTIAL_NOTE = "Month to date";
 
 const DAY = 86400e3;
 const pad = (n: number) => String(n).padStart(2, "0");
@@ -264,6 +270,8 @@ const round = (v: number, places = 0) => Math.round(v * 10 ** places) / 10 ** pl
 export type MonthValues = {
   month: string;
   date: string;
+  // The in-progress month: averages so far, through the latest date with data.
+  partial: boolean;
   nights: number;
   rhrDays: number;
   hrvDays: number;
@@ -317,40 +325,60 @@ const DAILY_METRICS = {
 
 // Monthly values for each calendar month (by wake date / day) before `beforeMonth` (YYYY-MM).
 // A value is null when the month has fewer than its minimum days of data.
-export function monthly(sessions: NightInput[], daily: DailyHealth[], beforeMonth: string): MonthValues[] {
-  type Acc = { nights: Night[]; daily: Record<keyof typeof DAILY_METRICS, number[]> };
+// `partialMonth` (YYYY-MM) is also included, as a month-to-date average needing fewer days.
+export function monthly(
+  sessions: NightInput[],
+  daily: DailyHealth[],
+  beforeMonth: string,
+  partialMonth?: string,
+): MonthValues[] {
+  type Acc = { nights: Night[]; daily: Record<keyof typeof DAILY_METRICS, number[]>; last: string };
   const months = new Map<string, Acc>();
   const at = (month: string) => {
     let m = months.get(month);
     if (!m)
       months.set(
         month,
-        (m = { nights: [], daily: { restingHr: [], hrv: [], spo2: [], respRate: [], skinTemp: [], preSleepHr: [], vo2Max: [] } }),
+        (m = { nights: [], daily: { restingHr: [], hrv: [], spo2: [], respRate: [], skinTemp: [], preSleepHr: [], vo2Max: [] }, last: "" }),
       );
     return m;
   };
-  for (const n of nights(sessions)) if (n.date.slice(0, 7) < beforeMonth) at(n.date.slice(0, 7)).nights.push(n);
+  const wanted = (month: string) => month < beforeMonth || month === partialMonth;
+  const seen = (m: Acc, date: string) => {
+    if (date > m.last) m.last = date;
+  };
+  for (const n of nights(sessions)) {
+    const month = n.date.slice(0, 7);
+    if (!wanted(month)) continue;
+    at(month).nights.push(n);
+    seen(at(month), n.date);
+  }
   for (const d of daily) {
     const month = d.date.slice(0, 7);
-    if (month >= beforeMonth) continue;
+    if (!wanted(month)) continue;
     for (const [key, { column }] of Object.entries(DAILY_METRICS) as [keyof typeof DAILY_METRICS, (typeof DAILY_METRICS)[keyof typeof DAILY_METRICS]][]) {
       const v = d[column];
-      if (v != null) at(month).daily[key].push(v);
+      if (v != null) {
+        at(month).daily[key].push(v);
+        seen(at(month), d.date);
+      }
     }
   }
   return [...months]
     .sort(([a], [b]) => a.localeCompare(b))
-    .map(([month, { nights: ns, daily: dm }]) => {
-      const sleep = ns.length >= MIN_DAYS;
+    .map(([month, { nights: ns, daily: dm, last }]) => {
+      const partial = month === partialMonth;
+      const sleep = ns.length >= (partial ? PARTIAL_MIN_DAYS : MIN_DAYS);
       const bedSd = sleep ? sd(ns.map((n) => n.bed)) : null;
       const wakeSd = sleep ? sd(ns.map((n) => n.wake)) : null;
       const bedtimeMin = sleep ? mean(ns.map((n) => n.bed)) : null;
       const wakeMin = sleep ? mean(ns.map((n) => n.wake)) : null;
       const avg = (k: keyof typeof DAILY_METRICS) =>
-        dm[k].length >= DAILY_METRICS[k].minDays && dm[k].length > 0 ? round(mean(dm[k]), DAILY_METRICS[k].places) : null;
+        dm[k].length >= (partial ? Math.min(PARTIAL_MIN_DAYS, DAILY_METRICS[k].minDays) : DAILY_METRICS[k].minDays) && dm[k].length > 0 ? round(mean(dm[k]), DAILY_METRICS[k].places) : null;
       return {
         month,
-        date: lastDayOfMonth(month),
+        date: partial && last ? last : lastDayOfMonth(month),
+        partial,
         nights: ns.length,
         rhrDays: dm.restingHr.length,
         hrvDays: dm.hrv.length,
@@ -378,6 +406,10 @@ export function monthly(sessions: NightInput[], daily: DailyHealth[], beforeMont
       };
     });
 }
+
+// A reading's note: the biomarker's own, prefixed for a month still in progress.
+export const readingNote = (b: SleepBiomarker, m: MonthValues) =>
+  m.partial ? `${PARTIAL_NOTE} (through ${m.date}; final value is written when the month ends). ${b.note(m)}` : b.note(m);
 
 export type SleepBiomarker = {
   key: MetricKey;
