@@ -125,21 +125,21 @@ function GoogleHealthButton({ status, googleParam }: { status: SleepSyncStatus; 
 
   return (
     <>
-      <Button size="sm" variant={!status.connected || needsReconnect || needsActivity ? "default" : "outline"} asChild title={hint}>
-        <a href="/api/google/connect">
-          {!status.connected
-            ? "Connect Google Health"
-            : needsReconnect
-              ? "Reconnect Google Health"
-              : needsActivity
-                ? "Reconnect Google to add VO2 max"
-                : "Google Health"}
-        </a>
-      </Button>
+      {(!status.connected || needsReconnect || needsActivity) && (
+        <Button size="sm" variant="default" asChild title={hint}>
+          <a href="/api/google/connect">
+            {!status.connected
+              ? "Connect Google Health"
+              : needsReconnect
+                ? "Reconnect Google Health"
+                : "Reconnect Google to add VO2 max"}
+          </a>
+        </Button>
+      )}
       {status.connected && !needsReconnect && (
         <Button size="sm" variant="outline" onClick={sync} disabled={running} title={hint}>
           <RefreshCw className={`h-4 w-4 ${running ? "animate-spin" : ""}`} />
-          {running ? "Syncing..." : "Sync"}
+          {running ? "Syncing..." : "Sync Google Fitbit Edge"}
         </Button>
       )}
     </>
@@ -204,7 +204,7 @@ function MyAirButtons({ status }: { status: MyAirSyncStatus }) {
       )}
       <Button size="sm" variant="outline" onClick={sync} disabled={running} title={hint}>
         <RefreshCw className={`h-4 w-4 ${running ? "animate-spin" : ""}`} />
-        {running ? "Syncing..." : "ResMed myAir"}
+        {running ? "Syncing..." : "Sync ResMed myAir"}
       </Button>
     </>
   );
