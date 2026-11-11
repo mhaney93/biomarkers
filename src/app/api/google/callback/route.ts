@@ -3,14 +3,14 @@ import { getExpectedToken, isAuthed } from "@/lib/auth";
 import { checkState, exchangeCode } from "@/lib/google";
 import { saveGoogleTokens, storedRefreshToken } from "@/lib/sleep-sync";
 
-const SLEEP_PAGE = "/categories/Sleep";
+const HOME = "/";
 
 // Google redirects here after consent with ?code=&state=. The refresh token is stored
-// server-side; the Sleep page then runs the first sync (the backfill).
+// server-side; the home page then runs the first sync (the backfill).
 export async function GET(request: NextRequest) {
   const q = request.nextUrl.searchParams;
   const back = (params: Record<string, string>) =>
-    NextResponse.redirect(new URL(`${SLEEP_PAGE}?${new URLSearchParams(params)}`, request.url));
+    NextResponse.redirect(new URL(`${HOME}?${new URLSearchParams(params)}`, request.url));
   if (q.get("error")) return back({ google: "error", reason: q.get("error")! });
   if (!(await isAuthed())) return back({ google: "error", reason: "Unlock editing first" });
   if (!checkState(await getExpectedToken(), q.get("state"))) {

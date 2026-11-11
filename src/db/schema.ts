@@ -58,11 +58,19 @@ export const sleepSessions = pgTable(
   (table) => [index("sleep_sessions_wake_date_idx").on(table.wakeDate)]
 );
 
-// Daily resting heart rate and HRV from Google Health.
+// Daily resting heart rate, HRV and the other overnight / fitness metrics from Google Health.
 export const dailyHealth = pgTable("daily_health", {
   date: date("date", { mode: "string" }).primaryKey(),
   restingHr: real("resting_hr"),
   hrvMs: real("hrv_ms"),
+  // Overnight SpO2 (% average), sleep respiratory rate (breaths/min), overnight skin temperature
+  // relative to the user's baseline (deg C), mean heart rate in the 30 minutes before the main sleep
+  // (bpm; keyed by wake date) and the Fitbit VO2 max estimate (mL/kg/min).
+  spo2Pct: real("spo2_pct"),
+  respRate: real("resp_rate"),
+  skinTempDeltaC: real("skin_temp_delta_c"),
+  preSleepHr: real("pre_sleep_hr"),
+  vo2Max: real("vo2_max"),
   syncedAt: timestamp("synced_at", { withTimezone: true }).notNull().defaultNow(),
 });
 

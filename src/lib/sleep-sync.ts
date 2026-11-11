@@ -8,15 +8,20 @@ import { biomarkers, dailyHealth, googleAuth, readings, sleepSessions } from "@/
 import {
   BIOMARKERS,
   CATEGORY,
+  PRE_SLEEP_DAYS,
+  addDays,
   completeBefore,
   mapDaily,
   mapSleep,
   monthly,
   nextWindow,
   pacificToday,
+  preSleepBpm,
+  preSleepWindow,
   type SleepSession,
 } from "@/lib/sleep";
 import {
+  ACTIVITY_SCOPE,
   ReconnectError,
   SLEEP_SCOPE,
   hasScope,
@@ -40,6 +45,8 @@ export type SyncResult = {
   syncedTo: string | null;
   more: boolean;
   warnings: string[];
+  // The grant lacks the activity scope, so VO2 max was not read (everything else was).
+  needsActivityScope?: boolean;
   published?: PublishResult;
 };
 
@@ -55,7 +62,9 @@ export async function getGoogleStatus() {
     .from(googleAuth)
     .where(eq(googleAuth.id, 1));
   if (!row) return null;
-  return { ...row, lastSync: row.lastSync as SyncResult | null, hasSleepScope: hasScope(row.scope, SLEEP_SCOPE) };
+  return { ...row, lastSync: row.lastSync as SyncResult | null, hasSleepScope: hasScope(row.scope, SLEEP_SCOPE),
+    hasActivityScope: hasScope(row.scope, ACTIVITY_SCOPE),
+  };
 }
 
 export async function saveGoogleTokens(refreshToken: string, scope: string | null) {
@@ -77,7 +86,13 @@ const excluded = (column: string) => sql.raw(`excluded.${column}`);
 
 // Read one window and replace what is stored for its wake dates (Google re-scores and merges
 // sessions, so ones it dropped go too). One statement per table: a window can hold a year.
-async function syncWindow(g: HealthClient, from: string, to: string, warnings: string[]) {
+async function syncWindow(
+  g: HealthClient,
+  from: string,
+  to: string,
+  warnings: string[],
+  { today, activity }: { today: string; activity: boolean },
+) {
   const db = getDb();
   const sessions: SleepSession[] = [];
   for (const dp of await g.sleep(from, to)) {
@@ -98,6 +113,18 @@ async function syncWindow(g: HealthClient, from: string, to: string, warnings: s
   };
   const resting = await optional("resting heart rate", () => g.dailyRestingHeartRate(from, to));
   const hrv = await optional("hrv", () => g.dailyHrv(from, to));
+  const spo2 = await optional("overnight SpO2", () => g.dailySpo2(from, to));
+  const respiratoryRate = await optional("respiratory rate", () => g.dailyRespiratoryRate(from, to));
+  const skinTemp = await optional("skin temperature", () => g.dailySkinTemp(from, to));
+  const vo2Max = activity ? await optional("VO2 max", () => g.dailyVo2Max(from, to)) : [];
+  // Heart rate before each recent main sleep (one request per night, so only the last PRE_SLEEP_DAYS).
+  const preSleep: { date: string; bpm: number }[] = [];
+  const recent = addDays(today, -PRE_SLEEP_DAYS);
+  for (const s of sessions.filter((x) => x.mainSleep && !x.nap && x.wakeDate >= recent)) {
+    const w = preSleepWindow(s.startTime);
+    const bpm = preSleepBpm(await optional(`heart rate before sleep ${s.wakeDate}`, () => g.heartRate(w.from, w.to)));
+    if (bpm != null) preSleep.push({ date: s.wakeDate, bpm });
+  }
 
   const unique = [...new Map(sessions.map((s) => [s.sleepId, s])).values()];
   await db
@@ -131,7 +158,7 @@ async function syncWindow(g: HealthClient, from: string, to: string, warnings: s
         },
       });
   }
-  const days = mapDaily(resting, hrv);
+  const days = mapDaily(resting, hrv, { spo2, respiratoryRate, skinTemp, vo2Max, preSleep });
   if (days.length) {
     await db
       .insert(dailyHealth)
@@ -141,6 +168,11 @@ async function syncWindow(g: HealthClient, from: string, to: string, warnings: s
         set: {
           restingHr: sql`coalesce(excluded.resting_hr, ${dailyHealth.restingHr})`,
           hrvMs: sql`coalesce(excluded.hrv_ms, ${dailyHealth.hrvMs})`,
+          spo2Pct: sql`coalesce(excluded.spo2_pct, ${dailyHealth.spo2Pct})`,
+          respRate: sql`coalesce(excluded.resp_rate, ${dailyHealth.respRate})`,
+          skinTempDeltaC: sql`coalesce(excluded.skin_temp_delta_c, ${dailyHealth.skinTempDeltaC})`,
+          preSleepHr: sql`coalesce(excluded.pre_sleep_hr, ${dailyHealth.preSleepHr})`,
+          vo2Max: sql`coalesce(excluded.vo2_max, ${dailyHealth.vo2Max})`,
           syncedAt: sql`now()`,
         },
       });
@@ -166,7 +198,18 @@ export async function publishMonths(cursor: string, today = pacificToday()): Pro
       nap: sleepSessions.nap,
     })
     .from(sleepSessions);
-  const daily = await db.select({ date: dailyHealth.date, restingHr: dailyHealth.restingHr, hrvMs: dailyHealth.hrvMs }).from(dailyHealth);
+  const daily = await db
+    .select({
+      date: dailyHealth.date,
+      restingHr: dailyHealth.restingHr,
+      hrvMs: dailyHealth.hrvMs,
+      spo2Pct: dailyHealth.spo2Pct,
+      respRate: dailyHealth.respRate,
+      skinTempDeltaC: dailyHealth.skinTempDeltaC,
+      preSleepHr: dailyHealth.preSleepHr,
+      vo2Max: dailyHealth.vo2Max,
+    })
+    .from(dailyHealth);
   const months = monthly(sessions, daily, before);
 
   const existing = await db
@@ -189,7 +232,7 @@ export async function publishMonths(cursor: string, today = pacificToday()): Pro
     if (ids.has(b.name) || !months.some((m) => m[b.key] != null)) continue;
     await db
       .insert(biomarkers)
-      .values({ name: b.name, unit: b.unit, valueType: b.valueType, category: CATEGORY })
+      .values({ name: b.name, unit: b.unit, valueType: b.valueType, category: CATEGORY, refHigh: b.refHigh })
       .onConflictDoNothing({ target: biomarkers.name });
     const [row] = await db.select({ id: biomarkers.id }).from(biomarkers).where(eq(biomarkers.name, b.name));
     ids.set(b.name, row.id);
@@ -237,10 +280,12 @@ export async function runSleepSync({
   result.syncedTo = cursor;
   try {
     if (!hasScope(row.scope, SLEEP_SCOPE)) throw new ReconnectError("The Google grant does not include sleep data");
+    const activity = hasScope(row.scope, ACTIVITY_SCOPE);
+    if (!activity) result.needsActivityScope = true;
     const g = client ?? healthClient((await refreshAccessToken(row.refreshToken)).access_token);
     do {
       const w = nextWindow(cursor, today);
-      result.windows.push(await syncWindow(g, w.from, w.to, result.warnings));
+      result.windows.push(await syncWindow(g, w.from, w.to, result.warnings, { today, activity }));
       cursor = w.to;
       result.more = w.more;
       await db.update(googleAuth).set({ sleepSyncedTo: cursor }).where(eq(googleAuth.id, 1));
