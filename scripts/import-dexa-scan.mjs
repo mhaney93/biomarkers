@@ -136,6 +136,55 @@ const entries = [
   },
 ];
 
+// Best-guess reference ranges for results the report gives no range for (adult male, 33, 6 ft 0 in).
+// Healthy weight is BMI 18.5–24.9 at 72 in (136–184 lbs). Fat % uses the ACE fitness-to-acceptable
+// band already on Total Body Fat % (14–24%), widened for the trunk and android regions where men
+// carry more fat (15–28%). Regional masses are typical lean-adult shares of body mass; bone mineral
+// content shares come from this scan. Bone density is one-sided: low is the concern (T-score below -1
+// is about one SD under the NHANES/Lunar young-adult mean), per regional Lunar reference means.
+const W = [136, 184];
+const SHARE = { Arms: 0.12, Legs: 0.34, Trunk: 0.48, Android: 0.07, Gynoid: 0.14, "Right Arm": 0.06, "Left Arm": 0.06, "Right Leg": 0.17, "Left Leg": 0.17 };
+const BONE_SHARE = { Arms: 0.14, Legs: 0.34, Trunk: 0.37, Android: 0.013, Gynoid: 0.09, "Right Arm": 0.07, "Left Arm": 0.07, "Right Leg": 0.17, "Left Leg": 0.17 };
+const BMC_TOTAL = [6, 9];
+const FAT = { Trunk: [15, 28], Android: [15, 28] };
+const BMD_LOW = { Head: 1.9, Arms: 0.95, Legs: 1.2, Trunk: 1.0, Ribs: 0.95, Spine: 1.06, Pelvis: 1.05, Total: 1.18 };
+const r1 = (n) => Math.round(n * 10) / 10;
+const RANGE_NOTE =
+  "Range: best-guess for an adult male at 6 ft 0 in (healthy weight BMI 18.5–24.9, ACE body fat 14–24%, typical regional proportions)";
+
+function guessRange(name) {
+  let m;
+  if (name === "Total Mass" || name === "Intake Weight") return { refLow: W[0], refHigh: W[1] };
+  if (name === "Total Fat Tissue") return { refLow: r1((W[0] * 0.14)), refHigh: r1(W[1] * 0.24) };
+  if (name === "Total Lean Tissue") return { refLow: r1(W[0] * 0.76), refHigh: r1(W[1] * 0.86) };
+  if (name === "Total Lean %") return { refLow: 76, refHigh: 86 };
+  if (name === "Total Bone Mineral Content (BMC)") return { refLow: BMC_TOTAL[0], refHigh: BMC_TOTAL[1] };
+  if (name === "Resting Metabolic Rate (RMR)") return { refLow: 1450, refHigh: 2000, note: "Range: best-guess, Mifflin-St Jeor for a 33-year-old male, 6 ft 0 in, at healthy weight (136–184 lbs) ±10%" };
+  if ((m = name.match(/^(.+) Bone Mineral Density \(BMD\)$/))) return { refLow: BMD_LOW[m[1]], note: "Range: best-guess lower limit (about T-score -1 against Lunar young-adult male reference); low is the concern" };
+  if ((m = name.match(/^(.+) (Fat %|Lean %|Total Mass|Fat Tissue|Lean Tissue|Bone Mineral Content \(BMC\))$/)) && SHARE[m[1]]) {
+    const [region, kind] = [m[1], m[2]];
+    const [fl, fh] = FAT[region] ?? [14, 24];
+    const mass = [SHARE[region] * W[0], SHARE[region] * W[1]];
+    if (kind === "Fat %") return { refLow: fl, refHigh: fh };
+    if (kind === "Lean %") return { refLow: 100 - fh, refHigh: 100 - fl };
+    if (kind === "Total Mass") return { refLow: r1(mass[0]), refHigh: r1(mass[1]) };
+    if (kind === "Fat Tissue") return { refLow: r1((mass[0] * fl) / 100), refHigh: r1((mass[1] * fh) / 100) };
+    if (kind === "Lean Tissue") return { refLow: r1((mass[0] * (100 - fh)) / 100), refHigh: r1((mass[1] * (100 - fl)) / 100) };
+    if (region === "Android") return { refLow: 0, refHigh: 0.2 }; // tiny region; rounding would collapse the range
+    return { refLow: r1(BONE_SHARE[region] * BMC_TOTAL[0]), refHigh: r1(BONE_SHARE[region] * BMC_TOTAL[1]) };
+  }
+  return null;
+}
+
+for (const e of entries) {
+  if (e.refLow != null || e.refHigh != null || (e.valueType ?? "number") === "text") continue;
+  const g = guessRange(e.name);
+  if (!g) continue;
+  e.refLow = g.refLow ?? null;
+  e.refHigh = g.refHigh ?? null;
+  e.notes = [e.notes, g.note ?? RANGE_NOTE].filter(Boolean).join(". ");
+}
+
 const sql = neon(process.env.DATABASE_URL);
 let createdBiomarkers = 0;
 let createdReadings = 0;
