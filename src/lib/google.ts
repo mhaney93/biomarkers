@@ -1,13 +1,24 @@
 // Google OAuth and the Google Health API (v4) client for the sleep sync. Read-only scopes only.
 // Client credentials come from env: GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET.
 import crypto from "node:crypto";
-import type { DailyHrvPoint, DailyRestingHeartRatePoint, SleepDataPoint } from "./sleep";
+import type {
+  DailyHrvPoint,
+  DailyRestingHeartRatePoint,
+  DailyRespiratoryRatePoint,
+  DailySkinTempPoint,
+  DailySpo2Point,
+  DailyVo2MaxPoint,
+  HeartRatePoint,
+  SleepDataPoint,
+} from "./sleep";
 
 const API = "https://health.googleapis.com/v4/users/me/dataTypes";
 
 export const SLEEP_SCOPE = "https://www.googleapis.com/auth/googlehealth.sleep.readonly";
 export const METRICS_SCOPE = "https://www.googleapis.com/auth/googlehealth.health_metrics_and_measurements.readonly";
-export const SCOPES = [SLEEP_SCOPE, METRICS_SCOPE];
+// Needed only for VO2 max; a grant made before it was requested keeps syncing everything else.
+export const ACTIVITY_SCOPE = "https://www.googleapis.com/auth/googlehealth.activity_and_fitness.readonly";
+export const SCOPES = [SLEEP_SCOPE, METRICS_SCOPE, ACTIVITY_SCOPE];
 
 // Google no longer accepts the stored grant: the owner has to connect again.
 export class ReconnectError extends Error {}
@@ -82,6 +93,12 @@ export type HealthClient = {
   sleep(from: string, to: string): Promise<SleepDataPoint[]>;
   dailyRestingHeartRate(from: string, to: string): Promise<DailyRestingHeartRatePoint[]>;
   dailyHrv(from: string, to: string): Promise<DailyHrvPoint[]>;
+  dailySpo2(from: string, to: string): Promise<DailySpo2Point[]>;
+  dailyRespiratoryRate(from: string, to: string): Promise<DailyRespiratoryRatePoint[]>;
+  dailySkinTemp(from: string, to: string): Promise<DailySkinTempPoint[]>;
+  dailyVo2Max(from: string, to: string): Promise<DailyVo2MaxPoint[]>;
+  // Heart rate samples with a physical time in [fromIso, toIso) (RFC 3339 instants).
+  heartRate(fromIso: string, toIso: string): Promise<HeartRatePoint[]>;
 };
 
 export function healthClient(accessToken: string, fetchImpl: typeof fetch = fetch): HealthClient {
@@ -118,6 +135,32 @@ export function healthClient(accessToken: string, fetchImpl: typeof fetch = fetc
       list(
         "daily-heart-rate-variability",
         `daily_heart_rate_variability.date >= "${from}" AND daily_heart_rate_variability.date < "${to}"`,
+        1000,
+      ),
+    dailySpo2: (from, to) =>
+      list(
+        "daily-oxygen-saturation",
+        `daily_oxygen_saturation.date >= "${from}" AND daily_oxygen_saturation.date < "${to}"`,
+        1000,
+      ),
+    dailyRespiratoryRate: (from, to) =>
+      list(
+        "daily-respiratory-rate",
+        `daily_respiratory_rate.date >= "${from}" AND daily_respiratory_rate.date < "${to}"`,
+        1000,
+      ),
+    dailySkinTemp: (from, to) =>
+      list(
+        "daily-sleep-temperature-derivations",
+        `daily_sleep_temperature_derivations.date >= "${from}" AND daily_sleep_temperature_derivations.date < "${to}"`,
+        1000,
+      ),
+    dailyVo2Max: (from, to) =>
+      list("daily-vo2-max", `daily_vo2_max.date >= "${from}" AND daily_vo2_max.date < "${to}"`, 1000),
+    heartRate: (fromIso, toIso) =>
+      list(
+        "heart-rate",
+        `heart_rate.sample_time.physical_time >= "${fromIso}" AND heart_rate.sample_time.physical_time < "${toIso}"`,
         1000,
       ),
   };

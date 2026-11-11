@@ -184,11 +184,12 @@ export async function deleteReading(id: string, biomarkerId: string) {
   revalidatePath(`/biomarkers/${biomarkerId}`);
 }
 
-// One run of the sleep sync from the Sleep page ("Sync now" and the backfill after connecting).
+// One run of the sleep sync from the home page ("Sync now" and the backfill after connecting).
 // The page calls it again while `more` is true.
 export async function syncSleepNow() {
   await requireAuth();
   const result = await runSleepSync();
+  revalidatePath("/");
   revalidatePath("/categories/Sleep");
   return result;
 }
@@ -196,6 +197,7 @@ export async function syncSleepNow() {
 export async function syncMyAirNow() {
   await requireAuth();
   const result = await runMyAirSync();
+  revalidatePath("/");
   revalidatePath("/categories/Sleep");
   return result;
 }
@@ -205,7 +207,8 @@ export async function sendMyAirCodeNow(): Promise<{ sent?: boolean; error?: stri
   await requireAuth();
   try {
     const r = await sendMyAirCode();
-    revalidatePath("/categories/Sleep");
+    revalidatePath("/");
+  revalidatePath("/categories/Sleep");
     return r;
   } catch (e) {
     return { error: (e as Error).message };
@@ -216,7 +219,8 @@ export async function verifyMyAirCodeNow(code: string): Promise<{ error?: string
   await requireAuth();
   try {
     await verifyMyAirCode(code);
-    revalidatePath("/categories/Sleep");
+    revalidatePath("/");
+  revalidatePath("/categories/Sleep");
     return {};
   } catch (e) {
     return { error: (e as Error).message };

@@ -1,4 +1,4 @@
-// Sleep, resting heart rate and HRV from the Google Health API, turned into monthly biomarker
+// Sleep, heart rate, HRV, SpO2, respiratory rate, skin temperature and VO2 max from the Google Health API, turned into monthly biomarker
 // values for the "Sleep" category. Pure functions only (no DB, no network), so they can be
 // tested with `npm test`. The DB side is in sleep-sync.ts.
 
@@ -63,6 +63,24 @@ export type DailyHrvPoint = {
   dailyHeartRateVariability?: { date?: CivilDate; averageHeartRateVariabilityMilliseconds?: number | string };
 };
 
+export type DailySpo2Point = {
+  dailyOxygenSaturation?: { date?: CivilDate; averagePercentage?: number | string };
+};
+export type DailyRespiratoryRatePoint = {
+  dailyRespiratoryRate?: { date?: CivilDate; breathsPerMinute?: number | string };
+};
+export type DailySkinTempPoint = {
+  dailySleepTemperatureDerivations?: {
+    date?: CivilDate;
+    nightlyTemperatureCelsius?: number | string;
+    baselineTemperatureCelsius?: number | string;
+  };
+};
+export type DailyVo2MaxPoint = { dailyVo2Max?: { date?: CivilDate; vo2Max?: number | string } };
+export type HeartRatePoint = {
+  heartRate?: { beatsPerMinute?: string | number; sampleTime?: { physicalTime?: string } };
+};
+
 export type SleepSession = {
   sleepId: string;
   wakeDate: string;
@@ -75,7 +93,40 @@ export type SleepSession = {
   nap: boolean;
 };
 
-export type DailyHealth = { date: string; restingHr: number | null; hrvMs: number | null };
+export type DailyHealth = {
+  date: string;
+  restingHr: number | null;
+  hrvMs: number | null;
+  spo2Pct: number | null;
+  respRate: number | null;
+  skinTempDeltaC: number | null;
+  preSleepHr: number | null;
+  vo2Max: number | null;
+};
+
+export type DailyExtra = {
+  spo2?: DailySpo2Point[];
+  respiratoryRate?: DailyRespiratoryRatePoint[];
+  skinTemp?: DailySkinTempPoint[];
+  vo2Max?: DailyVo2MaxPoint[];
+  preSleep?: { date: string; bpm: number }[];
+};
+
+// Heart rate before sleep: the mean of the samples in the PRE_SLEEP_MINUTES before a session starts,
+// kept for the PRE_SLEEP_DAYS most recent nights (one heart-rate request per night).
+export const PRE_SLEEP_MINUTES = 30;
+export const PRE_SLEEP_DAYS = 60;
+const MIN_PRE_SLEEP_SAMPLES = 3;
+
+export function preSleepWindow(startIso: string) {
+  const start = Date.parse(startIso);
+  return { from: new Date(start - PRE_SLEEP_MINUTES * 60e3).toISOString(), to: new Date(start).toISOString() };
+}
+
+export function preSleepBpm(points: HeartRatePoint[]): number | null {
+  const bpm = points.map((p) => Number(p.heartRate?.beatsPerMinute)).filter((v) => Number.isFinite(v) && v > 0);
+  return bpm.length >= MIN_PRE_SLEEP_SAMPLES ? round(mean(bpm), 1) : null;
+}
 
 export const civilDate = (d: CivilDate) => `${d.year}-${pad(d.month)}-${pad(d.day)}`;
 
@@ -120,14 +171,23 @@ export function mapSleep(dp: SleepDataPoint): SleepSession {
   };
 }
 
-// Daily RHR / HRV points -> one row per date.
-export function mapDaily(resting: DailyRestingHeartRatePoint[] = [], hrv: DailyHrvPoint[] = []): DailyHealth[] {
+// Daily points -> one row per date. Skin temperature is the night's reading minus the baseline.
+export function mapDaily(
+  resting: DailyRestingHeartRatePoint[] = [],
+  hrv: DailyHrvPoint[] = [],
+  extra: DailyExtra = {},
+): DailyHealth[] {
   const days = new Map<string, DailyHealth>();
   const at = (date: string) => {
     let d = days.get(date);
-    if (!d) days.set(date, (d = { date, restingHr: null, hrvMs: null }));
+    if (!d)
+      days.set(
+        date,
+        (d = { date, restingHr: null, hrvMs: null, spo2Pct: null, respRate: null, skinTempDeltaC: null, preSleepHr: null, vo2Max: null }),
+      );
     return d;
   };
+  const num = (v: number | string | null | undefined) => (v == null || v === "" || !Number.isFinite(Number(v)) ? null : Number(v));
   for (const p of resting) {
     const d = p.dailyRestingHeartRate;
     if (d?.date && d.beatsPerMinute != null) at(civilDate(d.date)).restingHr = Number(d.beatsPerMinute);
@@ -137,6 +197,28 @@ export function mapDaily(resting: DailyRestingHeartRatePoint[] = [], hrv: DailyH
     if (d?.date && d.averageHeartRateVariabilityMilliseconds != null)
       at(civilDate(d.date)).hrvMs = Number(d.averageHeartRateVariabilityMilliseconds);
   }
+  for (const p of extra.spo2 ?? []) {
+    const d = p.dailyOxygenSaturation;
+    const v = num(d?.averagePercentage);
+    if (d?.date && v != null) at(civilDate(d.date)).spo2Pct = v;
+  }
+  for (const p of extra.respiratoryRate ?? []) {
+    const d = p.dailyRespiratoryRate;
+    const v = num(d?.breathsPerMinute);
+    if (d?.date && v != null) at(civilDate(d.date)).respRate = v;
+  }
+  for (const p of extra.skinTemp ?? []) {
+    const d = p.dailySleepTemperatureDerivations;
+    const night = num(d?.nightlyTemperatureCelsius);
+    const base = num(d?.baselineTemperatureCelsius);
+    if (d?.date && night != null && base != null) at(civilDate(d.date)).skinTempDeltaC = round(night - base, 2);
+  }
+  for (const p of extra.vo2Max ?? []) {
+    const d = p.dailyVo2Max;
+    const v = num(d?.vo2Max);
+    if (d?.date && v != null) at(civilDate(d.date)).vo2Max = v;
+  }
+  for (const p of extra.preSleep ?? []) at(p.date).preSleepHr = p.bpm;
   return [...days.values()];
 }
 
@@ -185,6 +267,12 @@ export type MonthValues = {
   nights: number;
   rhrDays: number;
   hrvDays: number;
+  spo2Days: number;
+  spo2Min: number | null;
+  respDays: number;
+  skinTempDays: number;
+  preSleepDays: number;
+  vo2Days: number;
   bedSd: number | null;
   wakeSd: number | null;
   bedtimeMin: number | null;
@@ -195,40 +283,83 @@ export type MonthValues = {
   wake: number | null;
   restingHr: number | null;
   hrv: number | null;
+  spo2: number | null;
+  respRate: number | null;
+  skinTemp: number | null;
+  preSleepHr: number | null;
+  vo2Max: number | null;
 };
 
-export type MetricKey = "duration" | "consistency" | "bedtime" | "wake" | "restingHr" | "hrv";
+export type MetricKey =
+  | "duration"
+  | "consistency"
+  | "bedtime"
+  | "wake"
+  | "restingHr"
+  | "hrv"
+  | "spo2"
+  | "respRate"
+  | "skinTemp"
+  | "preSleepHr"
+  | "vo2Max";
+
+// Daily metrics averaged per month: the DailyHealth column and how many days a month needs.
+// VO2 max is re-estimated only now and then, so one day is enough.
+const DAILY_METRICS = {
+  restingHr: { column: "restingHr", minDays: MIN_DAYS, places: 1 },
+  hrv: { column: "hrvMs", minDays: MIN_DAYS, places: 1 },
+  spo2: { column: "spo2Pct", minDays: MIN_DAYS, places: 1 },
+  respRate: { column: "respRate", minDays: MIN_DAYS, places: 1 },
+  skinTemp: { column: "skinTempDeltaC", minDays: MIN_DAYS, places: 2 },
+  preSleepHr: { column: "preSleepHr", minDays: MIN_DAYS, places: 1 },
+  vo2Max: { column: "vo2Max", minDays: 1, places: 1 },
+} as const;
 
 // Monthly values for each calendar month (by wake date / day) before `beforeMonth` (YYYY-MM).
-// A value is null when the month has fewer than MIN_DAYS days of its data.
+// A value is null when the month has fewer than its minimum days of data.
 export function monthly(sessions: NightInput[], daily: DailyHealth[], beforeMonth: string): MonthValues[] {
-  const months = new Map<string, { nights: Night[]; rhr: number[]; hrv: number[] }>();
+  type Acc = { nights: Night[]; daily: Record<keyof typeof DAILY_METRICS, number[]> };
+  const months = new Map<string, Acc>();
   const at = (month: string) => {
     let m = months.get(month);
-    if (!m) months.set(month, (m = { nights: [], rhr: [], hrv: [] }));
+    if (!m)
+      months.set(
+        month,
+        (m = { nights: [], daily: { restingHr: [], hrv: [], spo2: [], respRate: [], skinTemp: [], preSleepHr: [], vo2Max: [] } }),
+      );
     return m;
   };
   for (const n of nights(sessions)) if (n.date.slice(0, 7) < beforeMonth) at(n.date.slice(0, 7)).nights.push(n);
   for (const d of daily) {
     const month = d.date.slice(0, 7);
     if (month >= beforeMonth) continue;
-    if (d.restingHr != null) at(month).rhr.push(d.restingHr);
-    if (d.hrvMs != null) at(month).hrv.push(d.hrvMs);
+    for (const [key, { column }] of Object.entries(DAILY_METRICS) as [keyof typeof DAILY_METRICS, (typeof DAILY_METRICS)[keyof typeof DAILY_METRICS]][]) {
+      const v = d[column];
+      if (v != null) at(month).daily[key].push(v);
+    }
   }
   return [...months]
     .sort(([a], [b]) => a.localeCompare(b))
-    .map(([month, { nights: ns, rhr, hrv }]) => {
+    .map(([month, { nights: ns, daily: dm }]) => {
       const sleep = ns.length >= MIN_DAYS;
       const bedSd = sleep ? sd(ns.map((n) => n.bed)) : null;
       const wakeSd = sleep ? sd(ns.map((n) => n.wake)) : null;
       const bedtimeMin = sleep ? mean(ns.map((n) => n.bed)) : null;
       const wakeMin = sleep ? mean(ns.map((n) => n.wake)) : null;
+      const avg = (k: keyof typeof DAILY_METRICS) =>
+        dm[k].length >= DAILY_METRICS[k].minDays && dm[k].length > 0 ? round(mean(dm[k]), DAILY_METRICS[k].places) : null;
       return {
         month,
         date: lastDayOfMonth(month),
         nights: ns.length,
-        rhrDays: rhr.length,
-        hrvDays: hrv.length,
+        rhrDays: dm.restingHr.length,
+        hrvDays: dm.hrv.length,
+        spo2Days: dm.spo2.length,
+        spo2Min: dm.spo2.length ? Math.min(...dm.spo2) : null,
+        respDays: dm.respRate.length,
+        skinTempDays: dm.skinTemp.length,
+        preSleepDays: dm.preSleepHr.length,
+        vo2Days: dm.vo2Max.length,
         bedSd: bedSd == null ? null : round(bedSd),
         wakeSd: wakeSd == null ? null : round(wakeSd),
         bedtimeMin,
@@ -237,8 +368,13 @@ export function monthly(sessions: NightInput[], daily: DailyHealth[], beforeMont
         consistency: bedSd == null || wakeSd == null ? null : round(Math.sqrt((bedSd ** 2 + wakeSd ** 2) / 2)),
         bedtime: bedtimeMin == null ? null : round(bedtimeMin / 60, 2),
         wake: wakeMin == null ? null : round(wakeMin / 60, 2),
-        restingHr: rhr.length >= MIN_DAYS ? round(mean(rhr), 1) : null,
-        hrv: hrv.length >= MIN_DAYS ? round(mean(hrv), 1) : null,
+        restingHr: avg("restingHr"),
+        hrv: avg("hrv"),
+        spo2: avg("spo2"),
+        respRate: avg("respRate"),
+        skinTemp: avg("skinTemp"),
+        preSleepHr: avg("preSleepHr"),
+        vo2Max: avg("vo2Max"),
       };
     });
 }
@@ -248,6 +384,8 @@ export type SleepBiomarker = {
   name: string;
   unit: string | null;
   valueType: "duration" | "number";
+  // Blueprint's target, where it gives one (heart rate before sleep: about 50 bpm or lower).
+  refHigh?: string;
   note: (m: MonthValues) => string;
 };
 
@@ -299,6 +437,46 @@ export const BIOMARKERS: SleepBiomarker[] = [
     unit: "ms",
     valueType: "number",
     note: (m) => `Mean of ${m.hrvDays} nightly HRV values (RMSSD during sleep). Google Health.`,
+  },
+  {
+    key: "preSleepHr",
+    name: "Heart Rate Before Sleep (Monthly)",
+    unit: "bpm",
+    valueType: "number",
+    refHigh: "50",
+    note: (m) =>
+      `Mean over ${m.preSleepDays} nights of the average heart rate in the ${PRE_SLEEP_MINUTES} minutes before the main sleep started. Blueprint target: about 50 bpm or lower. Google Health.`,
+  },
+  {
+    key: "spo2",
+    name: "Overnight SpO2 (Monthly)",
+    unit: "%",
+    valueType: "number",
+    note: (m) =>
+      `Mean of ${m.spo2Days} nightly average blood oxygen saturations; lowest night ${m.spo2Min}%. Google Health.`,
+  },
+  {
+    key: "respRate",
+    name: "Sleep Respiratory Rate (Monthly)",
+    unit: "breaths/min",
+    valueType: "number",
+    note: (m) => `Mean of ${m.respDays} nightly average breathing rates during sleep. Google Health.`,
+  },
+  {
+    key: "skinTemp",
+    name: "Overnight Skin Temperature Variation (Monthly)",
+    unit: "°C vs baseline",
+    valueType: "number",
+    note: (m) =>
+      `Mean of ${m.skinTempDays} nights of sleeping skin temperature minus the wearer's own baseline (positive is warmer). Google Health.`,
+  },
+  {
+    key: "vo2Max",
+    name: "VO2 Max (Fitbit estimate) (Monthly)",
+    unit: "mL/kg/min",
+    valueType: "number",
+    note: (m) =>
+      `Mean of ${m.vo2Days} daily Fitbit cardio fitness estimates from the wrist sensor, not a lab VO2 max test. Google Health.`,
   },
 ];
 

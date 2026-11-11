@@ -7,7 +7,7 @@ import { eq } from "drizzle-orm";
 import { beforeEach, test, vi } from "vitest";
 import * as schema from "@/db/schema";
 import type { HealthClient } from "@/lib/google";
-import { SLEEP_SCOPE } from "@/lib/google";
+import { ACTIVITY_SCOPE, METRICS_SCOPE, SLEEP_SCOPE } from "@/lib/google";
 import type { SleepDataPoint } from "@/lib/sleep";
 
 let db: ReturnType<typeof drizzle<typeof schema>>;
@@ -24,7 +24,7 @@ beforeEach(async () => {
   db = drizzle(new PGlite(), { schema });
   const { apply } = await pushSchema(schema, db as never);
   await apply();
-  await db.insert(googleAuth).values({ id: 1, refreshToken: "r", scope: SLEEP_SCOPE });
+  await db.insert(googleAuth).values({ id: 1, refreshToken: "r", scope: [SLEEP_SCOPE, METRICS_SCOPE, ACTIVITY_SCOPE].join(" ") });
 });
 
 async function seedHandEntered(values: Record<string, number>) {
@@ -80,6 +80,36 @@ function fakeGoogle(asleep: (date: string) => number, drop: string[] = []): Heal
         const [year, month, day] = d.split("-").map(Number);
         return { dailyHeartRateVariability: { date: { year, month, day }, averageHeartRateVariabilityMilliseconds: 40 } };
       });
+    },
+    async dailySpo2(from, to) {
+      return inRange(from, to).map((d) => {
+        const [year, month, day] = d.split("-").map(Number);
+        return { dailyOxygenSaturation: { date: { year, month, day }, averagePercentage: d === "2026-10-05" ? 88 : 96 } };
+      });
+    },
+    async dailyRespiratoryRate(from, to) {
+      return inRange(from, to).map((d) => {
+        const [year, month, day] = d.split("-").map(Number);
+        return { dailyRespiratoryRate: { date: { year, month, day }, breathsPerMinute: 14 } };
+      });
+    },
+    async dailySkinTemp(from, to) {
+      return inRange(from, to).map((d) => {
+        const [year, month, day] = d.split("-").map(Number);
+        return {
+          dailySleepTemperatureDerivations: { date: { year, month, day }, nightlyTemperatureCelsius: 33.5, baselineTemperatureCelsius: 33.25 },
+        };
+      });
+    },
+    async dailyVo2Max(from, to) {
+      calls.push(`vo2 ${from}..${to}`);
+      return inRange(from, to).map((d) => {
+        const [year, month, day] = d.split("-").map(Number);
+        return { dailyVo2Max: { date: { year, month, day }, vo2Max: 52 } };
+      });
+    },
+    async heartRate() {
+      return [50, 51, 49].map((bpm) => ({ heartRate: { beatsPerMinute: String(bpm) } }));
     },
   };
 }
@@ -172,6 +202,38 @@ test("a small time budget stops after one window and resumes from the cursor", a
   assert.equal(r.syncedTo, "2011-01-02");
   const next = await runSleepSync({ today: TODAY, client: g, budgetMs: 0 });
   assert.equal(next.windows[0].from, "2010-12-30");
+});
+
+test("publishes SpO2, respiratory rate, skin temperature, pre-sleep heart rate and VO2 max", async () => {
+  await runSleepSync({ today: TODAY, client: fakeGoogle(monthAsleep), budgetMs: 60_000 });
+  const { out } = await readingsByName();
+  // Heart rate before sleep is read only for the 60 nights before today (from Sep 3), so August has none.
+  assert.deepEqual(out["Overnight SpO2 (Monthly)"], ["2026-08-31=96", "2026-09-30=96", "2026-10-31=95.7"]);
+  assert.deepEqual(out["Sleep Respiratory Rate (Monthly)"], ["2026-08-31=14", "2026-09-30=14", "2026-10-31=14"]);
+  assert.deepEqual(out["Overnight Skin Temperature Variation (Monthly)"], ["2026-08-31=0.25", "2026-09-30=0.25", "2026-10-31=0.25"]);
+  assert.deepEqual(out["VO2 Max (Fitbit estimate) (Monthly)"], ["2026-08-31=52", "2026-09-30=52", "2026-10-31=52"]);
+  assert.deepEqual(out["Heart Rate Before Sleep (Monthly)"], ["2026-09-30=50", "2026-10-31=50"]);
+  const [b] = await db.select().from(biomarkers).where(eq(biomarkers.name, "Heart Rate Before Sleep (Monthly)"));
+  assert.equal(Number(b.refHigh), 50);
+  const notes = await db
+    .select({ notes: readings.notes })
+    .from(readings)
+    .innerJoin(biomarkers, eq(readings.biomarkerId, biomarkers.id))
+    .where(eq(biomarkers.name, "Overnight SpO2 (Monthly)"));
+  assert.ok(notes.some((n) => n.notes?.includes("lowest night 88%")));
+});
+
+test("a grant without the activity scope still syncs everything but VO2 max and says to reconnect", async () => {
+  await db.update(googleAuth).set({ scope: [SLEEP_SCOPE, METRICS_SCOPE].join(" ") });
+  const g = fakeGoogle(monthAsleep);
+  const r = await runSleepSync({ today: TODAY, client: g, budgetMs: 60_000 });
+  assert.equal(r.error, undefined);
+  assert.equal(r.needsActivityScope, true);
+  assert.ok(!g.calls.some((c) => c.startsWith("vo2")));
+  const { out } = await readingsByName();
+  assert.equal(out["VO2 Max (Fitbit estimate) (Monthly)"], undefined);
+  assert.equal(out["Overnight SpO2 (Monthly)"].length, 3);
+  assert.equal(out["Resting Heart Rate (Monthly)"].length, 3);
 });
 
 test("a grant without the sleep scope asks for a reconnect", async () => {

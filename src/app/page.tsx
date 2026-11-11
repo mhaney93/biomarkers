@@ -6,11 +6,16 @@ import { IssuesSection } from "@/components/issues-section";
 import { getBiomarkersWithLatest, getIssues, getMaxDeltaPercent, groupHierarchy } from "@/lib/biomarkers";
 import { isAuthed } from "@/lib/auth";
 import { Activity } from "lucide-react";
+import { SyncButtons } from "@/components/sync-buttons";
+import { myAirSyncStatus, sleepSyncStatus } from "@/lib/sync-status";
 
 export const dynamic = "force-dynamic";
+// The sync buttons' server actions read up to a year of nights per call.
+export const maxDuration = 60;
 
-export default async function Home() {
-  const [data, authed] = await Promise.all([getBiomarkersWithLatest(), isAuthed()]);
+export default async function Home({ searchParams }: { searchParams: Promise<{ google?: string; reason?: string }> }) {
+  const [data, authed, googleParam] = await Promise.all([getBiomarkersWithLatest(), isAuthed(), searchParams]);
+  const [googleStatus, myAirStatus] = authed ? await Promise.all([sleepSyncStatus(), myAirSyncStatus()]) : [null, null];
   const { groups, categories, standalone } = groupHierarchy(data);
   const hierarchy = { groups, categories, standalone };
   const issues = getIssues(data);
@@ -18,9 +23,12 @@ export default async function Home() {
 
   return (
     <div className="mx-auto max-w-[100rem] px-6 py-10">
-      <div className="mb-8 flex items-center justify-between">
+      <div className="mb-8 flex items-start justify-between gap-4">
         <h1 className="text-2xl font-semibold tracking-tight">Biomarkers</h1>
-        {authed ? <AddBiomarkerDialog /> : <UnlockDialog />}
+        <div className="flex flex-col items-end gap-2">
+          {authed ? <AddBiomarkerDialog /> : <UnlockDialog />}
+          {googleStatus && myAirStatus && <SyncButtons google={googleStatus} myAir={myAirStatus} googleParam={googleParam} />}
+        </div>
       </div>
 
       {data.length === 0 ? (

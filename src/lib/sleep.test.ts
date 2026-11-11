@@ -12,9 +12,23 @@ import {
   nextWindow,
   nights,
   pacificToday,
+  preSleepBpm,
+  preSleepWindow,
+  type DailyHealth,
   type SleepDataPoint,
   type SleepSession,
 } from "./sleep";
+
+const EMPTY_DAY: DailyHealth = {
+  date: "",
+  restingHr: null,
+  hrvMs: null,
+  spo2Pct: null,
+  respRate: null,
+  skinTempDeltaC: null,
+  preSleepHr: null,
+  vo2Max: null,
+};
 
 // Shape from the Google Health v4 discovery document (int64s as strings).
 const night: SleepDataPoint = {
@@ -66,9 +80,35 @@ test("mapDaily merges resting HR and HRV by date", () => {
     ],
   );
   assert.deepEqual(days, [
-    { date: "2026-10-15", restingHr: 52, hrvMs: 48.7 },
-    { date: "2026-10-16", restingHr: null, hrvMs: 51 },
+    { ...EMPTY_DAY, date: "2026-10-15", restingHr: 52, hrvMs: 48.7 },
+    { ...EMPTY_DAY, date: "2026-10-16", hrvMs: 51 },
   ]);
+});
+
+test("mapDaily maps SpO2, respiratory rate, skin temperature variation, VO2 max and pre-sleep heart rate", () => {
+  const date = { year: 2026, month: 10, day: 15 };
+  const days = mapDaily([], [], {
+    spo2: [{ dailyOxygenSaturation: { date, averagePercentage: 95.4 } }],
+    respiratoryRate: [{ dailyRespiratoryRate: { date, breathsPerMinute: 14.2 } }],
+    skinTemp: [{ dailySleepTemperatureDerivations: { date, nightlyTemperatureCelsius: 33.9, baselineTemperatureCelsius: 33.4 } }],
+    vo2Max: [{ dailyVo2Max: { date, vo2Max: 52.5 } }],
+    preSleep: [{ date: "2026-10-15", bpm: 49.5 }],
+  });
+  assert.deepEqual(days, [
+    { ...EMPTY_DAY, date: "2026-10-15", spo2Pct: 95.4, respRate: 14.2, skinTempDeltaC: 0.5, vo2Max: 52.5, preSleepHr: 49.5 },
+  ]);
+  // A skin temperature without its baseline says nothing about variation.
+  assert.deepEqual(
+    mapDaily([], [], { skinTemp: [{ dailySleepTemperatureDerivations: { date, nightlyTemperatureCelsius: 33.9 } }] }),
+    [],
+  );
+});
+
+test("preSleepBpm averages the window's samples and needs a few of them", () => {
+  const hr = (bpm: number | string) => ({ heartRate: { beatsPerMinute: bpm } });
+  assert.equal(preSleepBpm([hr("50"), hr(52), hr("48")]), 50);
+  assert.equal(preSleepBpm([hr("50"), hr(52)]), null);
+  assert.deepEqual(preSleepWindow("2026-10-15T06:00:00Z"), { from: "2026-10-15T05:30:00.000Z", to: "2026-10-15T06:00:00.000Z" });
 });
 
 // A session ending on `date` at `wake` (minutes) that started `asleep + 20` minutes before.
@@ -104,7 +144,14 @@ test("monthly averages, SDs, consistency and the MIN_DAYS threshold", () => {
     // Bedtimes alternate 23:00 / 00:00, wake times 6:00 / 7:00.
     const even = d % 2 === 0;
     sessions.push(session(date, even ? 0 : 23 * 60, even ? 7 * 60 : 6 * 60, even ? 450 : 390));
-    daily.push({ date, restingHr: 50 + (even ? 2 : 0), hrvMs: d === 1 ? 40 : null });
+    daily.push({
+      ...EMPTY_DAY,
+      date,
+      restingHr: 50 + (even ? 2 : 0),
+      hrvMs: d === 1 ? 40 : null,
+      spo2Pct: even ? 96 : 92,
+      vo2Max: d === 1 ? 52 : null,
+    });
   }
   sessions.push(session("2026-09-30", 23 * 60, 7 * 60, 400)); // September: 1 night, not published
   sessions.push(session("2026-11-01", 23 * 60, 7 * 60, 400)); // November: not complete
@@ -128,11 +175,24 @@ test("monthly averages, SDs, consistency and the MIN_DAYS threshold", () => {
   assert.equal(oct.restingHr, 51);
   assert.equal(oct.hrv, null); // only 1 day of HRV
   assert.equal(oct.hrvDays, 1);
+  assert.equal(oct.spo2, 94);
+  assert.equal(oct.spo2Min, 92);
+  assert.equal(oct.vo2Max, 52); // a single estimate is enough for VO2 max
+  assert.equal(oct.respRate, null);
 });
 
 test("every biomarker note renders from a month's values", () => {
   const sessions = Array.from({ length: MIN_DAYS }, (_, i) => session(`2026-10-${String(i + 1).padStart(2, "0")}`, 23 * 60, 6 * 60, 400));
-  const daily = sessions.map((s) => ({ date: s.wakeDate, restingHr: 50, hrvMs: 45 }));
+  const daily = sessions.map((s) => ({
+    date: s.wakeDate,
+    restingHr: 50,
+    hrvMs: 45,
+    spo2Pct: 95,
+    respRate: 14,
+    skinTempDeltaC: 0.3,
+    preSleepHr: 51,
+    vo2Max: 52,
+  }));
   const [oct] = monthly(sessions, daily, "2026-11");
   for (const b of BIOMARKERS) {
     assert.notEqual(oct[b.key], null, b.name);
