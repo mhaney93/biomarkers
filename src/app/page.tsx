@@ -6,7 +6,7 @@ import { IssuesSection } from "@/components/issues-section";
 import { getBiomarkersWithLatest, getIssues, getMaxDeltaPercent, getRetestDue, groupHierarchy } from "@/lib/biomarkers";
 import { isAuthed } from "@/lib/auth";
 import { Activity } from "lucide-react";
-import { SyncButtons } from "@/components/sync-buttons";
+import { TermsKey, biomarkerTexts } from "@/components/terms-key"; import { SyncButtons } from "@/components/sync-buttons";
 import { myAirSyncStatus, sleepSyncStatus } from "@/lib/sync-status";
 
 export const dynamic = "force-dynamic";
@@ -50,6 +50,8 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ g
       )}
 
       <IssuesSection issues={issues} retestDue={retestDue} />
+
+      <TermsKey texts={biomarkerTexts(data, ["Reference", "Due for a retest", "Monthly"])} />
     </div>
   );
 }
