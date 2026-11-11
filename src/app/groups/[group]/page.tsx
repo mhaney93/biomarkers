@@ -6,6 +6,7 @@ import { Breadcrumbs } from "@/components/breadcrumbs";
 import { RenameGroupDialog } from "@/components/rename-group-dialog";
 import { getBiomarkersWithLatest, getMaxDeltaPercent, groupItemsByCategory } from "@/lib/biomarkers";
 import { isAuthed } from "@/lib/auth";
+import { TermsKey, biomarkerTexts } from "@/components/terms-key";
 import { GROUP_SCAN_IMAGES } from "@/lib/scan-images";
 import { ScanImageLightbox } from "@/components/scan-image-lightbox";
 
@@ -63,6 +64,8 @@ export default async function GroupPage({
           <BiomarkerCard key={b.id} b={b} maxPercent={maxPercent} />
         ))}
       </div>
+
+      <TermsKey texts={biomarkerTexts(items)} />
     </div>
   );
 }

@@ -4,6 +4,7 @@ import { AddBiomarkerDialog } from "@/components/add-biomarker-dialog";
 import { Breadcrumbs } from "@/components/breadcrumbs";
 import { RenameCategoryDialog } from "@/components/rename-category-dialog";
 import { UnlockDialog } from "@/components/unlock-dialog";
+import { TermsKey, biomarkerTexts } from "@/components/terms-key";
 import { getBiomarkersWithLatest, getMaxDeltaPercent } from "@/lib/biomarkers";
 import { isAuthed } from "@/lib/auth";
 
@@ -40,6 +41,8 @@ export default async function CategoryPage({
           <BiomarkerCard key={b.id} b={b} showCategory={false} maxPercent={maxPercent} />
         ))}
       </div>
+
+      <TermsKey texts={biomarkerTexts(items)} />
     </div>
   );
 }

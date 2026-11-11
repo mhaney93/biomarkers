@@ -19,6 +19,7 @@ import { EditBiomarkerDialog } from "@/components/edit-biomarker-dialog";
 import { DeleteBiomarkerButton } from "@/components/delete-biomarker-button";
 import { EditReadingDialog } from "@/components/edit-reading-dialog";
 import { DeleteReadingButton } from "@/components/delete-reading-button";
+import { TermsKey, biomarkerTexts } from "@/components/terms-key";
 import { UnlockDialog } from "@/components/unlock-dialog";
 import {
   allergenBadgeLabel,
@@ -253,6 +254,16 @@ export default async function BiomarkerPage({
           )}
         </CardContent>
       </Card>
+
+      <TermsKey
+        texts={biomarkerTexts(
+          [{ ...biomarker, valueType: biomarker.valueType }],
+          [
+            "Reference",
+            ...allReadings.map((r) => r.notes ?? ""),
+          ]
+        )}
+      />
     </div>
   );
 }
