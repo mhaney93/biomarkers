@@ -3,7 +3,7 @@ import { AddBiomarkerDialog } from "@/components/add-biomarker-dialog";
 import { UnlockDialog } from "@/components/unlock-dialog";
 import { BiomarkersBrowser } from "@/components/biomarkers-browser";
 import { IssuesSection } from "@/components/issues-section";
-import { getBiomarkersWithLatest, getIssues, getMaxDeltaPercent, groupHierarchy } from "@/lib/biomarkers";
+import { getBiomarkersWithLatest, getIssues, getMaxDeltaPercent, getRetestDue, groupHierarchy } from "@/lib/biomarkers";
 import { isAuthed } from "@/lib/auth";
 import { Activity } from "lucide-react";
 import { SyncButtons } from "@/components/sync-buttons";
@@ -19,6 +19,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ g
   const { groups, categories, standalone } = groupHierarchy(data);
   const hierarchy = { groups, categories, standalone };
   const issues = getIssues(data);
+  const retestDue = getRetestDue(data);
   const maxPercent = getMaxDeltaPercent(data);
 
   return (
@@ -48,7 +49,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ g
         <BiomarkersBrowser data={data} hierarchy={hierarchy} maxPercent={maxPercent} />
       )}
 
-      <IssuesSection issues={issues} />
+      <IssuesSection issues={issues} retestDue={retestDue} />
     </div>
   );
 }
