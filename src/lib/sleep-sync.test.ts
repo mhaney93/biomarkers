@@ -211,7 +211,7 @@ test("publishes SpO2, respiratory rate, skin temperature, pre-sleep heart rate a
   assert.deepEqual(out["Overnight SpO2 (Monthly)"], ["2026-08-31=96", "2026-09-30=96", "2026-10-31=95.7"]);
   assert.deepEqual(out["Sleep Respiratory Rate (Monthly)"], ["2026-08-31=14", "2026-09-30=14", "2026-10-31=14"]);
   assert.deepEqual(out["Overnight Skin Temperature Variation (Monthly)"], ["2026-08-31=0.25", "2026-09-30=0.25", "2026-10-31=0.25"]);
-  assert.deepEqual(out["VO2 Max (Fitbit estimate) (Monthly)"], ["2026-08-31=52", "2026-09-30=52", "2026-10-31=52"]);
+  assert.deepEqual(out["VO2 Max (Fitbit estimate) (Monthly)"], ["2026-08-31=52", "2026-09-30=52", "2026-10-31=52", "2026-11-01=52"]);
   assert.deepEqual(out["Heart Rate Before Sleep (Monthly)"], ["2026-09-30=50", "2026-10-31=50"]);
   const [b] = await db.select().from(biomarkers).where(eq(biomarkers.name, "Heart Rate Before Sleep (Monthly)"));
   assert.equal(Number(b.refHigh), 50);
@@ -221,6 +221,40 @@ test("publishes SpO2, respiratory rate, skin temperature, pre-sleep heart rate a
     .innerJoin(biomarkers, eq(readings.biomarkerId, biomarkers.id))
     .where(eq(biomarkers.name, "Overnight SpO2 (Monthly)"));
   assert.ok(notes.some((n) => n.notes?.includes("lowest night 88%")));
+});
+
+test("the in-progress month is published as a labelled month-to-date value, then finalised", async () => {
+  const g = fakeGoogle(monthAsleep);
+  const mid = await runSleepSync({ today: "2026-10-20", client: g, budgetMs: 60_000 });
+  assert.ok(mid.published?.added.includes("2026-10 Overnight SpO2 (Monthly) = 95.6 (month to date)"));
+  const rows = () =>
+    db
+      .select({ takenAt: readings.takenAt, value: readings.value, notes: readings.notes })
+      .from(readings)
+      .innerJoin(biomarkers, eq(readings.biomarkerId, biomarkers.id))
+      .where(eq(biomarkers.name, "Overnight SpO2 (Monthly)"));
+  const [part] = (await rows()).filter((r) => r.takenAt.startsWith("2026-10"));
+  assert.equal(part.takenAt, "2026-10-20");
+  assert.match(part.notes!, /^Month to date \(through 2026-10-20/);
+  // A later sync replaces it in place; once the month is over the final value and date take over.
+  await runSleepSync({ today: "2026-11-02", client: g, budgetMs: 60_000 });
+  const oct = (await rows()).filter((r) => r.takenAt.startsWith("2026-10"));
+  assert.equal(oct.length, 1);
+  assert.equal(oct[0].takenAt, "2026-10-31");
+  assert.equal(Number(oct[0].value), 95.7);
+  assert.ok(!oct[0].notes!.startsWith("Month to date"));
+});
+
+test("a sync version bump rescans all history once, then resumes from the cursor", async () => {
+  const g = fakeGoogle(monthAsleep);
+  await runSleepSync({ today: TODAY, client: g, budgetMs: 60_000 });
+  await db.update(googleAuth).set({ sleepSyncVersion: 1 });
+  const rescan = await runSleepSync({ today: TODAY, client: g, budgetMs: 0 });
+  assert.equal(rescan.windows[0].from, "2010-01-01");
+  assert.equal(rescan.more, true);
+  // The reset is recorded with the new version, so the next run continues rather than restarting.
+  const next = await runSleepSync({ today: TODAY, client: g, budgetMs: 0 });
+  assert.equal(next.windows[0].from, "2010-12-30");
 });
 
 test("a grant without the activity scope still syncs everything but VO2 max and says to reconnect", async () => {

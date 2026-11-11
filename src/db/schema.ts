@@ -36,6 +36,9 @@ export const googleAuth = pgTable("google_auth", {
   connectedAt: timestamp("connected_at", { withTimezone: true }).notNull().defaultNow(),
   // Exclusive end of the wake dates scanned so far; null until the first sync.
   sleepSyncedTo: date("sleep_synced_to", { mode: "string" }),
+  // Which set of Google Health data types the scan has covered (SYNC_VERSION in lib/sleep.ts); a
+  // lower value makes the next sync rescan all history.
+  sleepSyncVersion: integer("sleep_sync_version").notNull().default(0),
   lastSyncAt: timestamp("last_sync_at", { withTimezone: true }),
   lastSync: jsonb("last_sync"),
 });
@@ -91,6 +94,9 @@ export const myairAuth = pgTable("myair_auth", {
   backfillFrom: date("backfill_from", { mode: "string" }),
   backfillEmptyMonths: integer("backfill_empty_months").notNull().default(0),
   backfillDone: boolean("backfill_done").notNull().default(false),
+  // Which set of Google Health data types the scan has covered (SYNC_VERSION in lib/sleep.ts); a
+  // lower value makes the next sync rescan all history.
+  sleepSyncVersion: integer("sleep_sync_version").notNull().default(0),
   lastSyncAt: timestamp("last_sync_at", { withTimezone: true }),
   lastSync: jsonb("last_sync"),
 });
