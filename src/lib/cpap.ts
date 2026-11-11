@@ -131,9 +131,10 @@ export type CpapBiomarker = {
 
 const SOURCE = "ResMed myAir.";
 
-// The biomarkers the myAir sync writes, all in the Sleep category. Ranges only where there is a
-// standard: compliance is at least 4 h a night, an AHI under 5 is normal, and ResMed flags a 95th
-// percentile leak above 24 L/min.
+// The biomarkers the myAir sync writes, all in the Sleep category. Ranges follow a
+// standard: compliance is at least 4 h a night, an AHI under 5 is normal, ResMed flags a 95th
+// percentile leak above 24 L/min, a myAir score of 80 or more is a good night (best guess), and a
+// mask on/off count of 2 or fewer per night means little interrupted use (best guess).
 export const CPAP_BIOMARKERS: CpapBiomarker[] = [
   {
     key: "usage",
@@ -169,7 +170,7 @@ export const CPAP_BIOMARKERS: CpapBiomarker[] = [
     unit: "per night",
     valueType: "number",
     refLow: null,
-    refHigh: null,
+    refHigh: "2",
     note: (m) => `Mean mask on/off count per night over ${m.usedNights} nights of use. ${SOURCE}`,
   },
   {
@@ -177,7 +178,7 @@ export const CPAP_BIOMARKERS: CpapBiomarker[] = [
     name: "myAir Score (Monthly)",
     unit: "points",
     valueType: "number",
-    refLow: null,
+    refLow: "80",
     refHigh: null,
     note: (m) => `Mean nightly myAir score (0-100) over ${m.usedNights} nights of use. ${SOURCE}`,
   },

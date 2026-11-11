@@ -232,7 +232,7 @@ export async function publishMonths(cursor: string, today = pacificToday()): Pro
     if (ids.has(b.name) || !months.some((m) => m[b.key] != null)) continue;
     await db
       .insert(biomarkers)
-      .values({ name: b.name, unit: b.unit, valueType: b.valueType, category: CATEGORY, refHigh: b.refHigh })
+      .values({ name: b.name, unit: b.unit, valueType: b.valueType, category: CATEGORY, refLow: b.refLow, refHigh: b.refHigh })
       .onConflictDoNothing({ target: biomarkers.name });
     const [row] = await db.select({ id: biomarkers.id }).from(biomarkers).where(eq(biomarkers.name, b.name));
     ids.set(b.name, row.id);

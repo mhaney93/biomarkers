@@ -384,14 +384,16 @@ export type SleepBiomarker = {
   name: string;
   unit: string | null;
   valueType: "duration" | "number";
-  // Blueprint's target, where it gives one (heart rate before sleep: about 50 bpm or lower).
+  // Reference range (best-guess for a healthy adult male; sources in the comments on each entry).
+  refLow?: string;
   refHigh?: string;
   note: (m: MonthValues) => string;
 };
 
-// The biomarkers the sync writes, all in CATEGORY with no reference range (the standard 60-100 bpm
-// would flag a runner's resting HR). The first is the hand-entered one; it already exists and is
-// left as it is (name, type and the owner's range).
+// The biomarkers the sync writes, all in CATEGORY. The first is the hand-entered one; it already
+// exists and is left as it is (name, type and the owner's range). Every other one carries a
+// researched best-guess range (adult male, 33) so none reads "No range set"; the same numbers are
+// applied to existing rows by scripts/set-reference-ranges.mjs.
 export const BIOMARKERS: SleepBiomarker[] = [
   {
     key: "duration",
@@ -406,6 +408,7 @@ export const BIOMARKERS: SleepBiomarker[] = [
     name: "Sleep Consistency (Monthly)",
     unit: "min SD",
     valueType: "number",
+    refHigh: "60", // Blueprint/sleep-regularity research: bed and wake times within about 30-60 min SD
     note: (m) =>
       `Root mean square of the standard deviations of bedtime (${m.bedSd} min) and wake time (${m.wakeSd} min) over ${m.nights} nights' main sleep; lower is steadier. Google Health.`,
   },
@@ -414,6 +417,7 @@ export const BIOMARKERS: SleepBiomarker[] = [
     name: "Average Bedtime (Monthly)",
     unit: "h (24 = midnight)",
     valueType: "number",
+    refHigh: "24", // asleep by midnight; Blueprint lights out around 8:30-9 PM, standard advice 10 PM-midnight
     note: (m) =>
       `Mean main-sleep start ${clock(m.bedtimeMin!)} over ${m.nights} nights. Clock hours, counting past 24 after midnight (24.5 = 12:30 AM). Google Health.`,
   },
@@ -422,6 +426,7 @@ export const BIOMARKERS: SleepBiomarker[] = [
     name: "Average Wake Time (Monthly)",
     unit: "h (6.5 = 6:30 AM)",
     valueType: "number",
+    refHigh: "8", // up by about 8 AM; standard adult schedule 5:30-8 AM
     note: (m) => `Mean main-sleep end ${clock(m.wakeMin!)} over ${m.nights} nights. Clock hours after midnight. Google Health.`,
   },
   {
@@ -429,6 +434,8 @@ export const BIOMARKERS: SleepBiomarker[] = [
     name: "Resting Heart Rate (Monthly)",
     unit: "bpm",
     valueType: "number",
+    refLow: "40",
+    refHigh: "70", // endurance-trained adults run 40-60; AHA 60-100 would flag a runner, so the top is tightened
     note: (m) => `Mean of ${m.rhrDays} daily resting heart rates. Google Health.`,
   },
   {
@@ -436,6 +443,7 @@ export const BIOMARKERS: SleepBiomarker[] = [
     name: "Heart Rate Variability (Monthly)",
     unit: "ms",
     valueType: "number",
+    refLow: "40", // sleeping RMSSD for men in their 30s averages about 40-60 ms; higher is better
     note: (m) => `Mean of ${m.hrvDays} nightly HRV values (RMSSD during sleep). Google Health.`,
   },
   {
@@ -452,6 +460,7 @@ export const BIOMARKERS: SleepBiomarker[] = [
     name: "Overnight SpO2 (Monthly)",
     unit: "%",
     valueType: "number",
+    refLow: "95", // normal blood oxygen saturation is 95-100%
     note: (m) =>
       `Mean of ${m.spo2Days} nightly average blood oxygen saturations; lowest night ${m.spo2Min}%. Google Health.`,
   },
@@ -460,6 +469,8 @@ export const BIOMARKERS: SleepBiomarker[] = [
     name: "Sleep Respiratory Rate (Monthly)",
     unit: "breaths/min",
     valueType: "number",
+    refLow: "12",
+    refHigh: "20", // normal adult respiratory rate is 12-20 breaths/min
     note: (m) => `Mean of ${m.respDays} nightly average breathing rates during sleep. Google Health.`,
   },
   {
@@ -467,6 +478,8 @@ export const BIOMARKERS: SleepBiomarker[] = [
     name: "Overnight Skin Temperature Variation (Monthly)",
     unit: "°C vs baseline",
     valueType: "number",
+    refLow: "-1",
+    refHigh: "1", // nightly deviations within about +/-1 C of the wearer's baseline are normal
     note: (m) =>
       `Mean of ${m.skinTempDays} nights of sleeping skin temperature minus the wearer's own baseline (positive is warmer). Google Health.`,
   },
@@ -475,6 +488,7 @@ export const BIOMARKERS: SleepBiomarker[] = [
     name: "VO2 Max (Fitbit estimate) (Monthly)",
     unit: "mL/kg/min",
     valueType: "number",
+    refLow: "40", // Cooper/ACSM: "good" or better for men 30-39 is about 40 mL/kg/min and up
     note: (m) =>
       `Mean of ${m.vo2Days} daily Fitbit cardio fitness estimates from the wrist sensor, not a lab VO2 max test. Google Health.`,
   },
