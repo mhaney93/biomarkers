@@ -5,10 +5,60 @@ import { allergenBadgeLabel, getAllergenBadgeProps, getBadgeProps, statusLabels 
 import { formatDuration } from "@/lib/duration";
 import { AlertTriangle } from "lucide-react";
 import { format } from "date-fns";
-import type { Issue } from "@/lib/biomarkers";
+import { ageInDays } from "@/lib/staleness";
+import { formatDistanceToNowStrict } from "date-fns";
+import type { Issue, RetestDue } from "@/lib/biomarkers";
 
-export function IssuesSection({ issues }: { issues: Issue[] }) {
-  if (issues.length === 0) return null;
+function RetestDueList({ items }: { items: RetestDue[] }) {
+  if (items.length === 0) return null;
+  return (
+    <div className="mt-6">
+      <div className="mb-2 flex items-center gap-2">
+        <h3 className="text-base font-semibold tracking-tight">Due for a retest</h3>
+        <span className="text-sm text-muted-foreground">last result out of range, but too old to count as current</span>
+      </div>
+      <Card>
+        <CardContent className="p-0">
+          <div className="divide-y">
+            {items.map(({ biomarker: b, value }) => {
+              const takenAt = b.latest!.takenAt;
+              return (
+                <Link
+                  key={b.id}
+                  href={`/biomarkers/${b.id}`}
+                  className="flex items-center justify-between gap-4 px-4 py-2 text-sm transition-colors hover:bg-muted/50"
+                >
+                  <span className="min-w-0 truncate font-medium">{b.name}</span>
+                  <span className="shrink-0 text-right tabular-nums text-muted-foreground">
+                    {b.valueType === "duration" && value != null ? formatDuration(value) : value}
+                    {b.valueType !== "duration" && b.unit && ` ${b.unit}`} · {format(new Date(takenAt), "MMM d, yyyy")} ·{" "}
+                    {ageInDays(takenAt) >= 1
+                      ? `${formatDistanceToNowStrict(new Date(takenAt))} ago`
+                      : "today"}
+                  </span>
+                </Link>
+              );
+            })}
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+export function IssuesSection({ issues, retestDue }: { issues: Issue[]; retestDue: RetestDue[] }) {
+  if (issues.length === 0 && retestDue.length === 0) return null;
+  if (issues.length === 0)
+    return (
+      <div className="mt-10">
+        <div className="mb-4 flex items-center gap-2">
+          <AlertTriangle className="h-5 w-5 text-muted-foreground" />
+          <h2 className="text-xl font-semibold tracking-tight">Issues</h2>
+          <span className="text-sm text-muted-foreground">none current</span>
+        </div>
+        <RetestDueList items={retestDue} />
+      </div>
+    );
 
   const maxPercent = issues[0]?.percent ?? 0;
 
@@ -84,6 +134,7 @@ export function IssuesSection({ issues }: { issues: Issue[] }) {
           </div>
         </CardContent>
       </Card>
+      <RetestDueList items={retestDue} />
     </div>
   );
 }

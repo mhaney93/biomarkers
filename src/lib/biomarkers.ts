@@ -1,6 +1,7 @@
 import { getDb } from "@/db";
 import { biomarkers, readings } from "@/db/schema";
 import { desc, eq, sql } from "drizzle-orm";
+import { isStale } from "@/lib/staleness";
 import { getAllergenClass, getStatus, isAllergenIgE, percentOutOfRange } from "@/lib/status";
 
 export async function getBiomarkersWithLatest() {
@@ -59,7 +60,8 @@ export function groupByCategory(data: BiomarkerWithLatest[]) {
   return { categories, standalone };
 }
 
-export function getIssues(data: BiomarkerWithLatest[]) {
+// Out-of-range results, split by whether the reading is still recent enough to count as current.
+function getOutOfRange(data: BiomarkerWithLatest[]) {
   return data
     .filter((b) => b.valueType !== "text")
     .map((b) => {
@@ -72,7 +74,12 @@ export function getIssues(data: BiomarkerWithLatest[]) {
       const percent = allergen ? null : percentOutOfRange(value, refLow, refHigh);
       return { biomarker: b, value, refLow, refHigh, status, percent, allergen };
     })
-    .filter((i) => (i.status === "low" || i.status === "high") && (i.percent != null || i.allergen != null))
+    .filter((i) => (i.status === "low" || i.status === "high") && (i.percent != null || i.allergen != null));
+}
+
+export function getIssues(data: BiomarkerWithLatest[], now: Date = new Date()) {
+  return getOutOfRange(data)
+    .filter((i) => !i.biomarker.latest || !isStale(i.biomarker, i.biomarker.latest.takenAt, now))
     .sort((a, b) => {
       if (a.allergen || b.allergen) {
         if (!a.allergen) return -1;
@@ -84,6 +91,15 @@ export function getIssues(data: BiomarkerWithLatest[]) {
 }
 
 export type Issue = ReturnType<typeof getIssues>[number];
+
+// Out-of-range results too old to count as current issues, oldest first.
+export function getRetestDue(data: BiomarkerWithLatest[], now: Date = new Date()) {
+  return getOutOfRange(data)
+    .filter((i) => i.biomarker.latest && isStale(i.biomarker, i.biomarker.latest.takenAt, now))
+    .sort((a, b) => a.biomarker.latest!.takenAt.localeCompare(b.biomarker.latest!.takenAt));
+}
+
+export type RetestDue = ReturnType<typeof getRetestDue>[number];
 
 export function getMaxDeltaPercent(data: BiomarkerWithLatest[]): number {
   const issues = getIssues(data);
