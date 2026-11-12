@@ -20,6 +20,7 @@ import { DeleteBiomarkerButton } from "@/components/delete-biomarker-button";
 import { EditReadingDialog } from "@/components/edit-reading-dialog";
 import { DeleteReadingButton } from "@/components/delete-reading-button";
 import { TermsKey, biomarkerTexts } from "@/components/terms-key";
+import { RangeNote } from "@/components/range-note";
 import { UnlockDialog } from "@/components/unlock-dialog";
 import {
   allergenBadgeLabel,
@@ -254,6 +255,8 @@ export default async function BiomarkerPage({
           )}
         </CardContent>
       </Card>
+
+      {!isText && (refLow != null || refHigh != null) && <RangeNote biomarkerId={biomarker.id} />}
 
       <TermsKey
         texts={biomarkerTexts(
