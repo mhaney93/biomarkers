@@ -6,6 +6,7 @@ import { BiomarkerCard } from "@/components/biomarker-card";
 import { CategoryCard } from "@/components/category-card";
 import { GroupCard } from "@/components/group-card";
 import type { BiomarkerWithLatest } from "@/lib/biomarkers";
+import { uniqueById } from "@/lib/sources";
 
 type Hierarchy = {
   groups: { group: string; items: BiomarkerWithLatest[] }[];
@@ -27,13 +28,13 @@ export function BiomarkersBrowser({
 
   const matches = useMemo(() => {
     if (!q) return [];
-    return data
-      .filter((b) =>
+    return uniqueById(
+      data.filter((b) =>
         [b.name, b.category, b.group, b.unit]
           .filter(Boolean)
           .some((f) => f!.toLowerCase().includes(q))
       )
-      .sort((a, b) => a.name.localeCompare(b.name));
+    ).sort((a, b) => a.name.localeCompare(b.name));
   }, [data, q]);
 
   return (

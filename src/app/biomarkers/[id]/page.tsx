@@ -1,7 +1,7 @@
 import { getDb } from "@/db";
 import { biomarkers, readings } from "@/db/schema";
-import { asc, eq, sql } from "drizzle-orm";
-import { notFound } from "next/navigation";
+import { asc, eq, inArray, sql } from "drizzle-orm";
+import { notFound, redirect } from "next/navigation";
 import { Breadcrumbs, type Crumb } from "@/components/breadcrumbs";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -35,6 +35,7 @@ import {
 import { getBiomarkersWithLatest, getMaxDeltaPercent } from "@/lib/biomarkers";
 import { isAuthed } from "@/lib/auth";
 import { formatDuration } from "@/lib/duration";
+import { getPrimaryId, getSources } from "@/lib/sources";
 import { format } from "date-fns";
 
 export const dynamic = "force-dynamic";
@@ -45,6 +46,9 @@ export default async function BiomarkerPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
+  // A secondary source is shown on the biomarker it measures (lib/sources.ts).
+  const primaryId = getPrimaryId(id);
+  if (primaryId) redirect(`/biomarkers/${primaryId}`);
   const db = getDb();
   const [authed, allBiomarkers] = await Promise.all([isAuthed(), getBiomarkersWithLatest()]);
   const maxPercent = getMaxDeltaPercent(allBiomarkers);
@@ -79,11 +83,17 @@ export default async function BiomarkerPage({
   }
   trail.push({ label: biomarker.name });
 
-  const allReadings = await db
-    .select()
-    .from(readings)
-    .where(eq(readings.biomarkerId, id))
-    .orderBy(asc(readings.takenAt));
+  const sources = getSources(id);
+  const sourceOf = new Map(sources?.map((s) => [s.biomarkerId, s.source]));
+  const allReadings = (
+    await db
+      .select()
+      .from(readings)
+      .where(sources ? inArray(readings.biomarkerId, sources.map((s) => s.biomarkerId)) : eq(readings.biomarkerId, id))
+      .orderBy(asc(readings.takenAt))
+  ).map((r) => ({ ...r, source: sourceOf.get(r.biomarkerId) ?? null }));
+  // The headline value and its range flag come from the primary source only.
+  const primaryReadings = allReadings.filter((r) => r.biomarkerId === id);
 
   const refLow = biomarker.refLow != null ? Number(biomarker.refLow) : null;
   const refHigh = biomarker.refHigh != null ? Number(biomarker.refHigh) : null;
@@ -93,9 +103,10 @@ export default async function BiomarkerPage({
     : allReadings.map((r) => ({
         takenAt: r.takenAt,
         value: Number(r.value),
+        source: r.source ?? undefined,
       }));
 
-  const latest = allReadings[allReadings.length - 1] ?? null;
+  const latest = primaryReadings[primaryReadings.length - 1] ?? null;
   const latestValue = !isText && latest?.value != null ? Number(latest.value) : null;
   const latestStatus = getStatus(latestValue, refLow, refHigh);
   const latestPercent = percentOutOfRange(latestValue, refLow, refHigh);
@@ -170,6 +181,7 @@ export default async function BiomarkerPage({
                 valueType={biomarker.valueType}
                 refLow={refLow}
                 refHigh={refHigh}
+                sources={sources?.map((s) => s.source)}
               />
             ) : (
               <p className="py-12 text-center text-sm text-muted-foreground">
@@ -192,6 +204,7 @@ export default async function BiomarkerPage({
               <TableHeader>
                 <TableRow>
                   <TableHead>Date</TableHead>
+                  {sources && <TableHead>Source</TableHead>}
                   <TableHead>Value</TableHead>
                   {!isText && <TableHead>Status</TableHead>}
                   <TableHead>Notes</TableHead>
@@ -212,6 +225,9 @@ export default async function BiomarkerPage({
                       <TableCell className="whitespace-nowrap">
                         {format(new Date(r.takenAt), "MMM d, yyyy")}
                       </TableCell>
+                      {sources && (
+                        <TableCell className="whitespace-nowrap text-muted-foreground">{r.source}</TableCell>
+                      )}
                       <TableCell className={isText ? "max-w-[280px] whitespace-normal break-words" : "tabular-nums"}>
                         {isText ? (
                           r.textValue
@@ -263,6 +279,7 @@ export default async function BiomarkerPage({
           [{ ...biomarker, valueType: biomarker.valueType }],
           [
             "Reference",
+            ...(sources?.map((s) => s.source) ?? []),
             ...allReadings.map((r) => r.notes ?? ""),
           ]
         )}

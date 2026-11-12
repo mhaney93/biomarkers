@@ -950,7 +950,7 @@ export const RANGE_NOTES: Record<string, RangeNote> = {
     above: "High diastolic pressure (the pressure between beats) is associated with hypertension, which over time can damage arteries, the heart, kidneys and eyes.",
     below: "Low diastolic pressure can be normal in fit people, but can also reflect dehydration, blood loss, some medicines or heart problems, and can cause dizziness or fainting.",
   },
-  "5abdc4a3-79a5-4cb0-a900-b3e40f69559a": { // Resting Pulse
+  "5abdc4a3-79a5-4cb0-a900-b3e40f69559a": { // Seated Pulse
     above: "A higher resting pulse can reflect stress, illness, dehydration, caffeine, an overactive thyroid, anemia or lower fitness, and is associated with higher cardiovascular risk when persistent.",
     below: "A lower resting pulse is common with athletic conditioning; very low rates can cause lightheadedness or fainting when due to heart conduction problems or certain medicines.",
   },
