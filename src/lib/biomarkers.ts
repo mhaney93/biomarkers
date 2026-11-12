@@ -3,6 +3,7 @@ import { biomarkers, readings } from "@/db/schema";
 import { desc, eq, sql } from "drizzle-orm";
 import { isStale } from "@/lib/staleness";
 import { getAllergenClass, getStatus, isAllergenIgE, percentOutOfRange } from "@/lib/status";
+import { applyMultiSource, uniqueById } from "@/lib/sources";
 
 export async function getBiomarkersWithLatest() {
   const db = getDb();
@@ -24,7 +25,8 @@ export async function getBiomarkersWithLatest() {
     })
   );
 
-  return withLatest;
+  // A multi-source biomarker is listed in each of its sources' groups/categories (see lib/sources.ts).
+  return applyMultiSource(withLatest);
 }
 
 export type BiomarkerWithLatest = Awaited<ReturnType<typeof getBiomarkersWithLatest>>[number];
@@ -62,7 +64,7 @@ export function groupByCategory(data: BiomarkerWithLatest[]) {
 
 // Out-of-range results, split by whether the reading is still recent enough to count as current.
 function getOutOfRange(data: BiomarkerWithLatest[]) {
-  return data
+  return uniqueById(data)
     .filter((b) => b.valueType !== "text")
     .map((b) => {
       const value = b.latest?.value != null ? Number(b.latest.value) : null;

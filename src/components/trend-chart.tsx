@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  Legend,
   Line,
   LineChart,
   ResponsiveContainer,
@@ -14,7 +15,22 @@ import {
 import { format } from "date-fns";
 import { formatDuration } from "@/lib/duration";
 
-type Point = { takenAt: string; value: number };
+type Point = { takenAt: string; value: number; source?: string };
+
+// Primary source first: a connected line. Other sources: unconnected markers of their own shape.
+const SERIES_COLORS = ["#2a78d6", "#d9730d", "#8e44ad"];
+
+// A diamond marker; recharts calls it for every row, including rows without this source's value.
+function diamondDot(fill: string, size: number) {
+  function DiamondDot({ cx, cy, index, value }: { cx?: number; cy?: number; index?: number; value?: unknown }) {
+    if (cx == null || cy == null || value == null) return <g key={index} />;
+    const h = size / 2;
+    return (
+      <rect key={index} x={cx - h} y={cy - h} width={size} height={size} fill={fill} transform={`rotate(45 ${cx} ${cy})`} />
+    );
+  }
+  return DiamondDot;
+}
 
 export function TrendChart({
   data,
@@ -22,17 +38,23 @@ export function TrendChart({
   valueType = "number",
   refLow,
   refHigh,
+  sources,
 }: {
   data: Point[];
+  /** Source labels, primary first; points name theirs in `source`. Omit for a single source. */
+  sources?: string[];
   unit: string | null;
   valueType?: string;
   refLow: number | null;
   refHigh: number | null;
 }) {
   const isDuration = valueType === "duration";
+  const series = sources && sources.length > 1 ? sources : null;
+  // One row per reading; a multi-source row fills only its own source's column.
   const chartData = data.map((d) => ({
     ...d,
     label: format(new Date(d.takenAt), "MMM d, yyyy"),
+    ...(series ? { [`s${Math.max(series.indexOf(d.source ?? ""), 0)}`]: d.value } : {}),
   }));
 
   const hasRange = refLow != null && refHigh != null && refLow !== refHigh;
@@ -116,19 +138,53 @@ export function TrendChart({
               color: "var(--popover-foreground)",
             }}
             labelStyle={{ color: "var(--muted-foreground)" }}
-            formatter={(value) => [
+            formatter={(value, name) => [
               isDuration ? formatDuration(Number(value)) : unit ? `${value} ${unit}` : `${value}`,
-              "Value",
+              series ? name : "Value",
             ]}
           />
-          <Line
-            type="monotone"
-            dataKey="value"
-            stroke="#2a78d6"
-            strokeWidth={2}
-            dot={{ r: 4, fill: "#2a78d6", strokeWidth: 0 }}
-            activeDot={{ r: 6 }}
-          />
+          {series ? (
+            <>
+              <Legend iconSize={10} wrapperStyle={{ fontSize: 12 }} />
+              {series.map((label, i) =>
+                i === 0 ? (
+                  <Line
+                    key={label}
+                    name={label}
+                    type="monotone"
+                    dataKey="s0"
+                    stroke={SERIES_COLORS[0]}
+                    strokeWidth={2}
+                    connectNulls
+                    dot={{ r: 4, fill: SERIES_COLORS[0], strokeWidth: 0 }}
+                    activeDot={{ r: 6 }}
+                    legendType="circle"
+                  />
+                ) : (
+                  <Line
+                    key={label}
+                    name={label}
+                    dataKey={`s${i}`}
+                    stroke={SERIES_COLORS[i % SERIES_COLORS.length]}
+                    strokeWidth={0}
+                    dot={diamondDot(SERIES_COLORS[i % SERIES_COLORS.length], 9)}
+                    activeDot={diamondDot(SERIES_COLORS[i % SERIES_COLORS.length], 12)}
+                    isAnimationActive={false}
+                    legendType="diamond"
+                  />
+                )
+              )}
+            </>
+          ) : (
+            <Line
+              type="monotone"
+              dataKey="value"
+              stroke="#2a78d6"
+              strokeWidth={2}
+              dot={{ r: 4, fill: "#2a78d6", strokeWidth: 0 }}
+              activeDot={{ r: 6 }}
+            />
+          )}
         </LineChart>
       </ResponsiveContainer>
     </div>
