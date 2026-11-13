@@ -11,7 +11,7 @@ import {
   percentOutOfRange,
   statusLabels,
 } from "@/lib/status";
-import { formatDuration } from "@/lib/duration";
+import { formatValue, isSpecialFormat } from "@/lib/display";
 import { format } from "date-fns";
 import type { BiomarkerWithLatest } from "@/lib/biomarkers";
 
@@ -58,8 +58,8 @@ export function BiomarkerCard({
                 <p className="line-clamp-2 text-lg font-semibold">{b.latest.textValue}</p>
               ) : (
                 <p className="text-2xl font-semibold tabular-nums">
-                  {b.valueType === "duration" && value != null ? (
-                    formatDuration(value)
+                  {isSpecialFormat(b.valueType, b.unit) && value != null ? (
+                    formatValue(value, b.valueType, b.unit)
                   ) : (
                     <>
                       {value}

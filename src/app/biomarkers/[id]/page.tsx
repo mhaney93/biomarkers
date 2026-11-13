@@ -34,7 +34,7 @@ import {
 } from "@/lib/status";
 import { getBiomarkersWithLatest, getMaxDeltaPercent } from "@/lib/biomarkers";
 import { isAuthed } from "@/lib/auth";
-import { formatDuration } from "@/lib/duration";
+import { formatValue, formatRange, isClockUnit, isSpecialFormat } from "@/lib/display";
 import { getPrimaryId, getSources } from "@/lib/sources";
 import { format } from "date-fns";
 
@@ -140,13 +140,13 @@ export default async function BiomarkerPage({
               ? "Text"
               : biomarker.valueType === "duration"
                 ? "Duration (h:m)"
-                : biomarker.unit
+                : isClockUnit(biomarker.unit)
+                  ? "Clock time"
+                  : biomarker.unit
                   ? `Unit: ${biomarker.unit}`
                   : "No unit"}
             {!isText && (refLow != null || refHigh != null)
-              ? biomarker.valueType === "duration"
-                ? ` · Reference: ${refLow != null ? formatDuration(refLow) : "–"}–${refHigh != null ? formatDuration(refHigh) : "–"}`
-                : ` · Reference: ${refLow ?? "–"}–${refHigh ?? "–"}`
+              ? ` · Reference: ${formatRange(refLow, refHigh, biomarker.valueType, biomarker.unit)}`
               : ""}
           </p>
         </div>
@@ -231,8 +231,8 @@ export default async function BiomarkerPage({
                       <TableCell className={isText ? "max-w-[280px] whitespace-normal break-words" : "tabular-nums"}>
                         {isText ? (
                           r.textValue
-                        ) : biomarker.valueType === "duration" && value != null ? (
-                          formatDuration(value)
+                        ) : isSpecialFormat(biomarker.valueType, biomarker.unit) && value != null ? (
+                          formatValue(value, biomarker.valueType, biomarker.unit)
                         ) : (
                           <>
                             {value}
