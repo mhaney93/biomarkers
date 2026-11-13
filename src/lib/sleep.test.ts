@@ -61,6 +61,56 @@ test("mapSleep reads civil times, string int64s and the wake date", () => {
   assert.equal(s.nap, false);
 });
 
+// A STAGES session's segments from 23:00 local (06:00Z): minutes per segment.
+function staged(segments: [string, number][], summary = true): SleepDataPoint {
+  let t = Date.parse("2026-10-15T06:00:00Z");
+  const stages = segments.map(([type, min]) => {
+    const seg = { type, startTime: new Date(t).toISOString(), endTime: new Date(t + min * 60e3).toISOString() };
+    t += min * 60e3;
+    return seg;
+  });
+  const total = (type: string) => segments.filter(([x]) => x === type).reduce((a, [, m]) => a + m, 0);
+  return {
+    ...night,
+    sleep: {
+      ...night.sleep,
+      type: "STAGES",
+      stages,
+      summary: {
+        ...night.sleep.summary,
+        minutesToFallAsleep: "0",
+        stagesSummary: summary
+          ? ["AWAKE", "LIGHT", "DEEP", "REM"].map((type) => ({ type, minutes: String(total(type)), count: "1" }))
+          : undefined,
+      },
+    },
+  };
+}
+
+test("mapSleep reads stage minutes, awake time after sleep onset and awakenings from a STAGES session", () => {
+  // 12 min awake before falling asleep and 3 at the end are not WASO; 7 + 4 + 6 min in between are.
+  const segs: [string, number][] = [
+    ["AWAKE", 12], ["LIGHT", 100], ["AWAKE", 7], ["DEEP", 60], ["AWAKE", 4], ["REM", 50], ["AWAKE", 6], ["LIGHT", 90], ["AWAKE", 3],
+  ];
+  const s = mapSleep(staged(segs));
+  assert.deepEqual(
+    [s.sleepType, s.deepMinutes, s.remMinutes, s.lightMinutes, s.wasoMinutes, s.awakenings, s.minutesToFallAsleep],
+    ["STAGES", 60, 50, 190, 17, 2, 0],
+  );
+  // Without a stages summary the minutes come from the segments.
+  const t = mapSleep(staged(segs, false));
+  assert.deepEqual([t.deepMinutes, t.remMinutes, t.lightMinutes], [60, 50, 190]);
+});
+
+test("mapSleep leaves stage fields empty for a CLASSIC session", () => {
+  const s = mapSleep({
+    ...night,
+    sleep: { ...night.sleep, type: "CLASSIC", stages: [{ type: "ASLEEP", startTime: night.sleep.interval.startTime, endTime: night.sleep.interval.endTime }] },
+  });
+  assert.equal(s.sleepType, "CLASSIC");
+  assert.deepEqual([s.deepMinutes, s.remMinutes, s.lightMinutes, s.wasoMinutes, s.awakenings], [null, null, null, null, null]);
+});
+
 test("mapSleep falls back to the UTC offset when civil times are missing", () => {
   const { civilStartTime, civilEndTime, ...interval } = night.sleep.interval;
   void civilStartTime;
@@ -133,7 +183,21 @@ test("nights uses the main sleep only (naps excluded), counts a duplicate sessio
   const dup = { ...main, minutesAsleep: 390, mainSleep: false }; // same night from another source
   const nap = session("2026-10-02", 14 * 60, 14 * 60 + 40, 20, { mainSleep: false, nap: true });
   const napOnly = session("2026-10-03", 14 * 60, 14 * 60 + 40, 20, { mainSleep: false, nap: true });
-  assert.deepEqual(nights([main, dup, nap, napOnly]), [{ date: "2026-10-02", asleep: 400, bed: 1470, wake: 420 }]);
+  assert.deepEqual(nights([main, dup, nap, napOnly]), [
+    {
+      date: "2026-10-02",
+      asleep: 400,
+      bed: 1470,
+      wake: 420,
+      inBed: 420,
+      efficiency: 400 / 420,
+      deep: null,
+      rem: null,
+      light: null,
+      waso: null,
+      awakenings: null,
+    },
+  ]);
 });
 
 test("monthly averages, SDs, consistency and the MIN_DAYS threshold", () => {
@@ -181,8 +245,33 @@ test("monthly averages, SDs, consistency and the MIN_DAYS threshold", () => {
   assert.equal(oct.respRate, null);
 });
 
+test("time in bed and efficiency use every night; stage metrics need MIN_DAYS stage-scored nights", () => {
+  const stages = { deepMinutes: 60, remMinutes: 90, lightMinutes: 250, wasoMinutes: 20, awakenings: 2 };
+  const sessions = Array.from({ length: MIN_DAYS }, (_, i) =>
+    // 400 asleep of 420 in bed; the first night has no stages (a CLASSIC night).
+    session(`2026-10-${String(i + 1).padStart(2, "0")}`, 23 * 60, 6 * 60, 400, i === 0 ? {} : stages),
+  );
+  const [oct] = monthly(sessions, [], "2026-11");
+  assert.equal(oct.timeInBed, 420);
+  assert.equal(oct.efficiency, 95.2);
+  assert.equal(oct.stageNights, MIN_DAYS - 1);
+  assert.deepEqual([oct.deep, oct.rem, oct.light, oct.waso, oct.awakenings], [null, null, null, null, null]);
+  sessions[0] = { ...sessions[0], ...stages, deepMinutes: 80, awakenings: 3 };
+  const [full] = monthly(sessions, [], "2026-11");
+  assert.deepEqual([full.deep, full.rem, full.light, full.waso, full.awakenings], [62, 90, 250, 20, 2.1]);
+  assert.match(BIOMARKERS.find((b) => b.key === "deep")!.note(full), /\(15% of sleep stages\) over 10 nights/);
+});
+
 test("every biomarker note renders from a month's values", () => {
-  const sessions = Array.from({ length: MIN_DAYS }, (_, i) => session(`2026-10-${String(i + 1).padStart(2, "0")}`, 23 * 60, 6 * 60, 400));
+  const sessions = Array.from({ length: MIN_DAYS }, (_, i) =>
+    session(`2026-10-${String(i + 1).padStart(2, "0")}`, 23 * 60, 6 * 60, 400, {
+      deepMinutes: 60,
+      remMinutes: 90,
+      lightMinutes: 250,
+      wasoMinutes: 20,
+      awakenings: 2,
+    }),
+  );
   const daily = sessions.map((s) => ({
     date: s.wakeDate,
     restingHr: 50,

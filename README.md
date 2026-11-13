@@ -17,7 +17,7 @@ A personal web app for logging lab results and health metrics over time and seei
 - **Allergy classes**: allergen-specific IgE results (unit `kU/L`, name ending in `IgE`) show the lab's 0–6 allergy class instead of a percent. Their severity color follows that class.
 - **Search**: the homepage filters biomarkers by name, category, group, or unit.
 - **Navigation**: breadcrumb trails on every page and a loading skeleton during navigation.
-- **Sleep sync**: the Sleep category pulls nightly sleep, daily resting heart rate and HRV from the Google Health API (read-only) and publishes each completed month's averages: sleep duration, consistency, bedtime, wake time, resting heart rate and HRV. See [Sleep sync](#sleep-sync).
+- **Sleep sync**: the Sleep category pulls nightly sleep, daily resting heart rate and HRV from the Google Health API (read-only) and publishes each completed month's averages: sleep duration, time in bed, sleep efficiency, deep / REM / light sleep, awake time after falling asleep, awakenings, consistency, bedtime, wake time, resting heart rate, HRV, overnight SpO2, respiratory rate, skin temperature, heart rate before sleep and VO2 max. See [Sleep sync](#sleep-sync).
 - **CPAP sync**: the Sleep category also pulls nightly ResMed CPAP records from myAir and publishes each completed month's CPAP usage, AHI, mask leak, mask on/off count and myAir score. See [CPAP sync (myAir)](#cpap-sync-myair).
 
 ## Access model

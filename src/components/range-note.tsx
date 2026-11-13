@@ -1,8 +1,8 @@
 import { getRangeNote } from "@/lib/range-notes";
 
 // Short educational blurb on what being above or below the reference range can mean.
-export function RangeNote({ biomarkerId }: { biomarkerId: string }) {
-  const note = getRangeNote(biomarkerId);
+export function RangeNote({ biomarkerId, name }: { biomarkerId: string; name?: string }) {
+  const note = getRangeNote(biomarkerId, name);
   if (!note) return null;
   return (
     <section aria-labelledby="range-note-heading" className="mt-10 border-t pt-6">

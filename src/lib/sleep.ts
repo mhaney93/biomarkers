@@ -1,4 +1,4 @@
-// Sleep, heart rate, HRV, SpO2, respiratory rate, skin temperature and VO2 max from the Google Health API, turned into monthly biomarker
+// Sleep (timing, time in bed, efficiency, stages, awake time), heart rate, HRV, SpO2, respiratory rate, skin temperature and VO2 max from the Google Health API, turned into monthly biomarker
 // values for the "Sleep" category. Pure functions only (no DB, no network), so they can be
 // tested with `npm test`. The DB side is in sleep-sync.ts.
 
@@ -15,7 +15,7 @@ export const MIN_DAYS = 10;
 export const PARTIAL_MIN_DAYS = 3;
 // Bump when the set of Google Health data types the sync reads changes: the next sync then rescans
 // all history once so the new metrics are backfilled.
-export const SYNC_VERSION = 2;
+export const SYNC_VERSION = 3;
 export const PARTIAL_NOTE = "Month to date";
 
 const DAY = 86400e3;
@@ -56,11 +56,22 @@ export type SleepDataPoint = {
       civilStartTime?: CivilDateTime;
       civilEndTime?: CivilDateTime;
     };
+    // CLASSIC sessions have AWAKE / RESTLESS / ASLEEP stages; STAGES sessions AWAKE / LIGHT / DEEP / REM.
     type?: string;
+    // Contiguous, non-overlapping segments covering the whole session.
+    stages?: SleepStage[];
     metadata?: { mainSleep?: boolean; nap?: boolean } & Record<string, unknown>;
-    summary?: { minutesAsleep?: string | number; minutesInSleepPeriod?: string | number } & Record<string, unknown>;
+    summary?: {
+      minutesAsleep?: string | number;
+      minutesInSleepPeriod?: string | number;
+      minutesAwake?: string | number;
+      minutesToFallAsleep?: string | number;
+      stagesSummary?: { type?: string; minutes?: string | number; count?: string | number }[];
+    } & Record<string, unknown>;
   } & Record<string, unknown>;
 };
+
+export type SleepStage = { type?: string; startTime?: string; endTime?: string } & Record<string, unknown>;
 
 export type DailyRestingHeartRatePoint = {
   dailyRestingHeartRate?: { date?: CivilDate; beatsPerMinute?: string | number };
@@ -97,7 +108,22 @@ export type SleepSession = {
   minutesAsleep: number | null;
   mainSleep: boolean | null;
   nap: boolean;
+  // CLASSIC or STAGES. The stage fields below are null unless the session is STAGES-scored.
+  sleepType: string | null;
+  deepMinutes: number | null;
+  remMinutes: number | null;
+  lightMinutes: number | null;
+  // Awake after sleep onset: AWAKE segments between the first and last sleep segment, and how many
+  // of them lasted at least AWAKENING_MINUTES. Null without a stage list.
+  wasoMinutes: number | null;
+  awakenings: number | null;
+  // Google's own minutesToFallAsleep, kept as reported (not published; see the PR that added it).
+  minutesToFallAsleep: number | null;
 };
+
+// An awakening counts when it lasts at least this long (the NSF sleep-quality indicators count
+// awakenings of more than 5 minutes).
+export const AWAKENING_MINUTES = 5;
 
 export type DailyHealth = {
   date: string;
@@ -158,6 +184,39 @@ function civilClock(civil: CivilDateTime | undefined, iso: string, offset: strin
 
 const int = (v: string | number | null | undefined) => (v == null || v === "" ? null : Number(v));
 
+const segMinutes = (x: SleepStage) => (Date.parse(x.endTime ?? "") - Date.parse(x.startTime ?? "")) / 60e3;
+
+// Deep / REM / light minutes from the stages summary (or the segments when there is no summary),
+// for a STAGES-scored session only.
+function stageMinutes(s: SleepDataPoint["sleep"]) {
+  const none = { deepMinutes: null, remMinutes: null, lightMinutes: null };
+  if (s.type !== "STAGES") return none;
+  const summary = s.summary?.stagesSummary ?? [];
+  const segments = (s.stages ?? []).filter((x) => Number.isFinite(segMinutes(x)));
+  if (!summary.length && !segments.length) return none;
+  const of = (type: string) =>
+    summary.length
+      ? (int(summary.find((x) => x.type === type)?.minutes) ?? 0)
+      : Math.round(segments.filter((x) => x.type === type).reduce((a, x) => a + segMinutes(x), 0));
+  return { deepMinutes: of("DEEP"), remMinutes: of("REM"), lightMinutes: of("LIGHT") };
+}
+
+// Awake time after sleep onset and awakenings (>= AWAKENING_MINUTES), from a STAGES session's segments.
+function wakeAfterOnset(s: SleepDataPoint["sleep"]) {
+  const segs = (s.stages ?? [])
+    .filter((x) => Number.isFinite(segMinutes(x)))
+    .sort((a, b) => Date.parse(a.startTime!) - Date.parse(b.startTime!));
+  if (s.type !== "STAGES" || !segs.length) return { wasoMinutes: null, awakenings: null };
+  const asleep = segs.map((x) => x.type !== "AWAKE");
+  const first = asleep.indexOf(true);
+  const last = asleep.lastIndexOf(true);
+  const awake = first < 0 ? [] : segs.slice(first, last + 1).filter((x) => x.type === "AWAKE");
+  return {
+    wasoMinutes: Math.round(awake.reduce((a, x) => a + segMinutes(x), 0)),
+    awakenings: awake.filter((x) => segMinutes(x) >= AWAKENING_MINUTES).length,
+  };
+}
+
 // One `sleep` data point -> a sleep_sessions row. A night belongs to the local date it ends on.
 export function mapSleep(dp: SleepDataPoint): SleepSession {
   const s = dp.sleep;
@@ -174,6 +233,10 @@ export function mapSleep(dp: SleepDataPoint): SleepSession {
     minutesAsleep: int(s.summary?.minutesAsleep),
     mainSleep: s.metadata?.mainSleep ?? null,
     nap: s.metadata?.nap ?? false,
+    sleepType: s.type ?? null,
+    ...stageMinutes(s),
+    ...wakeAfterOnset(s),
+    minutesToFallAsleep: int(s.summary?.minutesToFallAsleep),
   };
 }
 
@@ -231,8 +294,23 @@ export function mapDaily(
 type NightInput = Pick<
   SleepSession,
   "wakeDate" | "startTime" | "endTime" | "bedMinute" | "wakeMinute" | "minutesAsleep" | "mainSleep" | "nap"
->;
-export type Night = { date: string; asleep: number; bed: number; wake: number };
+> &
+  Partial<Pick<SleepSession, "deepMinutes" | "remMinutes" | "lightMinutes" | "wasoMinutes" | "awakenings">>;
+export type Night = {
+  date: string;
+  asleep: number;
+  bed: number;
+  wake: number;
+  // Minutes from the start to the end of the session, and minutes asleep / that (null without minutes asleep).
+  inBed: number;
+  efficiency: number | null;
+  // Null unless the night is STAGES-scored.
+  deep: number | null;
+  rem: number | null;
+  light: number | null;
+  waso: number | null;
+  awakenings: number | null;
+};
 
 const overlaps = (a: NightInput, b: NightInput) =>
   Date.parse(a.startTime) < Date.parse(b.endTime) && Date.parse(b.startTime) < Date.parse(a.endTime);
@@ -250,11 +328,19 @@ export function nights(sessions: NightInput[]): Night[] {
     for (const s of longest) if (!kept.some((k) => overlaps(k, s))) kept.push(s);
     const main = kept.find((s) => s.mainSleep) ?? kept.find((s) => !s.nap) ?? kept[0];
     if (main.nap) continue; // naps only: says nothing about bed and wake times
+    const inBed = Math.round((Date.parse(main.endTime) - Date.parse(main.startTime)) / 60e3);
     out.push({
       date,
       asleep: main.minutesAsleep ?? 0,
       bed: main.bedMinute < 12 * 60 ? main.bedMinute + 24 * 60 : main.bedMinute,
       wake: main.wakeMinute,
+      inBed,
+      efficiency: main.minutesAsleep != null && inBed > 0 ? main.minutesAsleep / inBed : null,
+      deep: main.deepMinutes ?? null,
+      rem: main.remMinutes ?? null,
+      light: main.lightMinutes ?? null,
+      waso: main.wasoMinutes ?? null,
+      awakenings: main.awakenings ?? null,
     });
   }
   return out;
@@ -281,11 +367,21 @@ export type MonthValues = {
   skinTempDays: number;
   preSleepDays: number;
   vo2Days: number;
+  // Nights with deep / REM / light stages, and nights with a stage list (awake time, awakenings).
+  stageNights: number;
+  wasoNights: number;
   bedSd: number | null;
   wakeSd: number | null;
   bedtimeMin: number | null;
   wakeMin: number | null;
   duration: number | null;
+  timeInBed: number | null;
+  efficiency: number | null;
+  deep: number | null;
+  rem: number | null;
+  light: number | null;
+  waso: number | null;
+  awakenings: number | null;
   consistency: number | null;
   bedtime: number | null;
   wake: number | null;
@@ -300,6 +396,13 @@ export type MonthValues = {
 
 export type MetricKey =
   | "duration"
+  | "timeInBed"
+  | "efficiency"
+  | "deep"
+  | "rem"
+  | "light"
+  | "waso"
+  | "awakenings"
   | "consistency"
   | "bedtime"
   | "wake"
@@ -368,7 +471,13 @@ export function monthly(
     .sort(([a], [b]) => a.localeCompare(b))
     .map(([month, { nights: ns, daily: dm, last }]) => {
       const partial = month === partialMonth;
-      const sleep = ns.length >= (partial ? PARTIAL_MIN_DAYS : MIN_DAYS);
+      const need = partial ? PARTIAL_MIN_DAYS : MIN_DAYS;
+      const sleep = ns.length >= need;
+      // Mean of a per-night value over the nights that have it, when enough do.
+      const per = (f: (n: Night) => number | null, places = 0, scale = 1) => {
+        const xs = ns.map(f).filter((v): v is number => v != null);
+        return xs.length >= need ? round(mean(xs) * scale, places) : null;
+      };
       const bedSd = sleep ? sd(ns.map((n) => n.bed)) : null;
       const wakeSd = sleep ? sd(ns.map((n) => n.wake)) : null;
       const bedtimeMin = sleep ? mean(ns.map((n) => n.bed)) : null;
@@ -388,11 +497,20 @@ export function monthly(
         skinTempDays: dm.skinTemp.length,
         preSleepDays: dm.preSleepHr.length,
         vo2Days: dm.vo2Max.length,
+        stageNights: ns.filter((n) => n.deep != null).length,
+        wasoNights: ns.filter((n) => n.waso != null).length,
         bedSd: bedSd == null ? null : round(bedSd),
         wakeSd: wakeSd == null ? null : round(wakeSd),
         bedtimeMin,
         wakeMin,
         duration: sleep ? round(mean(ns.map((n) => n.asleep))) : null,
+        timeInBed: sleep ? round(mean(ns.map((n) => n.inBed))) : null,
+        efficiency: per((n) => n.efficiency, 1, 100),
+        deep: per((n) => n.deep),
+        rem: per((n) => n.rem),
+        light: per((n) => n.light),
+        waso: per((n) => n.waso),
+        awakenings: per((n) => n.awakenings, 1),
         consistency: bedSd == null || wakeSd == null ? null : round(Math.sqrt((bedSd ** 2 + wakeSd ** 2) / 2)),
         bedtime: bedtimeMin == null ? null : round(bedtimeMin / 60, 2),
         wake: wakeMin == null ? null : round(wakeMin / 60, 2),
@@ -406,6 +524,12 @@ export function monthly(
       };
     });
 }
+
+// A stage's share of deep + REM + light, as a whole percent.
+const stageShare = (m: MonthValues, v: number | null) => {
+  const total = (m.deep ?? 0) + (m.rem ?? 0) + (m.light ?? 0);
+  return v == null || !total ? 0 : round((v / total) * 100);
+};
 
 // A reading's note: the biomarker's own, prefixed for a month still in progress.
 export const readingNote = (b: SleepBiomarker, m: MonthValues) =>
@@ -434,6 +558,71 @@ export const BIOMARKERS: SleepBiomarker[] = [
     valueType: "duration",
     note: (m) =>
       `Mean minutes asleep over ${m.nights} nights' main sleep (naps and awake time excluded). Google Health.`,
+  },
+  {
+    key: "timeInBed",
+    name: "Time in Bed (Monthly)",
+    unit: null,
+    valueType: "duration",
+    refLow: "450",
+    refHigh: "570", // 7h30m-9h30m: 7-9 h asleep (AASM/NSF) at the 85%+ efficiency of a healthy sleeper; much longer in bed lowers efficiency
+    note: (m) =>
+      `Mean time from the start to the end of the main sleep (asleep and awake) over ${m.nights} nights. Google Health.`,
+  },
+  {
+    key: "efficiency",
+    name: "Sleep Efficiency (Monthly)",
+    unit: "%",
+    valueType: "number",
+    refLow: "85", // AASM/NSF: 85% or more of time in bed asleep is normal for adults
+    note: (m) =>
+      `Mean share of time in bed spent asleep (minutes asleep / time in bed) over ${m.nights} nights' main sleep. Google Health.`,
+  },
+  {
+    key: "deep",
+    name: "Deep Sleep (Monthly)",
+    unit: null,
+    valueType: "duration",
+    refLow: "55", // deep (N3) sleep is about 13-23% of sleep in healthy adults; 13% of 7 h is about 55 min
+    note: (m) =>
+      `Mean minutes of deep sleep per night (${stageShare(m, m.deep)}% of sleep stages) over ${m.stageNights} nights with sleep stages. Wrist estimate, not a sleep-lab study. Google Health.`,
+  },
+  {
+    key: "rem",
+    name: "REM Sleep (Monthly)",
+    unit: null,
+    valueType: "duration",
+    refLow: "85", // REM is about 20-25% of sleep in healthy adults; 20% of 7 h is about 85 min
+    note: (m) =>
+      `Mean minutes of REM sleep per night (${stageShare(m, m.rem)}% of sleep stages) over ${m.stageNights} nights with sleep stages. Wrist estimate, not a sleep-lab study. Google Health.`,
+  },
+  {
+    key: "light",
+    name: "Light Sleep (Monthly)",
+    unit: null,
+    valueType: "duration",
+    refLow: "180",
+    refHigh: "300", // light (N1 + N2) sleep is about 45-60% of sleep; roughly 3-5 h of a 7-8 h night
+    note: (m) =>
+      `Mean minutes of light sleep per night (${stageShare(m, m.light)}% of sleep stages) over ${m.stageNights} nights with sleep stages. Wrist estimate, not a sleep-lab study. Google Health.`,
+  },
+  {
+    key: "waso",
+    name: "Awake Time After Falling Asleep (Monthly)",
+    unit: null,
+    valueType: "duration",
+    refHigh: "50", // NSF sleep-quality indicators: 51+ min awake after sleep onset is poor for adults (20 min or less is good)
+    note: (m) =>
+      `Mean minutes awake between first falling asleep and the final wake-up (WASO) over ${m.wasoNights} nights with sleep stages. Very brief wake-ups that Google does not score as an awake stage are not counted. Google Health.`,
+  },
+  {
+    key: "awakenings",
+    name: "Awakenings (Monthly)",
+    unit: "per night",
+    valueType: "number",
+    refHigh: "3", // NSF sleep-quality indicators: 4 or more awakenings over 5 min a night is poor for adults (1 or fewer is good)
+    note: (m) =>
+      `Mean number of times awake for ${AWAKENING_MINUTES} minutes or more after first falling asleep, over ${m.wasoNights} nights with sleep stages. Google Health.`,
   },
   {
     key: "consistency",

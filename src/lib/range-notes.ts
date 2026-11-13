@@ -1,7 +1,8 @@
 // "Above range" / "Below range" blurbs shown on a biomarker's detail page, keyed by biomarker id
 // (the trailing comment is the biomarker name). General education only, paraphrasing well-known
 // patient references (MedlinePlus, Mayo Clinic, Cleveland Clinic lab-test pages). Biomarkers
-// without a reference range, or with a text value, have no entry.
+// without a reference range, or with a text value, have no entry. Sync-created biomarkers that may not
+// exist yet are in RANGE_NOTES_BY_NAME instead.
 
 export type RangeNote = { above: string; below: string };
 
@@ -960,6 +961,38 @@ export const RANGE_NOTES: Record<string, RangeNote> = {
   },
 };
 
-export function getRangeNote(id: string): RangeNote | null {
-  return RANGE_NOTES[id] ?? null;
+// Biomarkers the sleep sync creates on first publish, so they have no id yet: keyed by name.
+export const RANGE_NOTES_BY_NAME: Record<string, RangeNote> = {
+  "Time in Bed (Monthly)": {
+    above: "Spending much longer in bed than you sleep tends to lower sleep efficiency and can reflect trouble sleeping, illness, low mood or extra sleep need; limiting time in bed is a standard part of insomnia treatment.",
+    below: "Less time in bed leaves less room for sleep, so a short time in bed usually means a short sleep and is associated with daytime sleepiness and, long-term, cardiometabolic risk.",
+  },
+  "Sleep Efficiency (Monthly)": {
+    above: "Only the low direction is clinically meaningful; a high share of time in bed spent asleep is the target.",
+    below: "A lower sleep efficiency means more of the night in bed is spent awake, which is a common feature of insomnia and can also come from pain, sleep apnea, a noisy or warm room, caffeine or alcohol.",
+  },
+  "Deep Sleep (Monthly)": {
+    above: "Only the low direction is clinically meaningful; more deep sleep often follows sleep loss or hard training.",
+    below: "Less deep sleep than typical is associated with older age, short or broken sleep, alcohol, sleep apnea and some medicines, and with feeling less restored. Wrist estimates of stages are approximate.",
+  },
+  "REM Sleep (Monthly)": {
+    above: "Only the low direction is clinically meaningful; more REM sleep often follows a period of REM loss.",
+    below: "Less REM sleep than typical can come from short sleep (most REM is in the last hours of the night), alcohol, cannabis, some antidepressants or sleep apnea, and is associated with poorer memory and mood. Wrist estimates of stages are approximate.",
+  },
+  "Light Sleep (Monthly)": {
+    above: "A larger amount of light sleep can mean less time in deep or REM sleep, as with fragmented sleep or sleep apnea, or simply a long night.",
+    below: "Less light sleep usually reflects a shorter night overall, as light sleep makes up about half of normal sleep.",
+  },
+  "Awake Time After Falling Asleep (Monthly)": {
+    above: "More time awake after first falling asleep means more broken sleep, which is a feature of insomnia and can come from sleep apnea, pain, needing to urinate, alcohol, stress or a disruptive bedroom.",
+    below: "Only the high direction is clinically meaningful; little time awake overnight is the target.",
+  },
+  "Awakenings (Monthly)": {
+    above: "Waking several times a night for 5 minutes or more fragments sleep and is associated with feeling less rested; it can come from sleep apnea, pain, needing to urinate, alcohol, stress or noise.",
+    below: "Only the high direction is clinically meaningful; few awakenings are the target.",
+  },
+};
+
+export function getRangeNote(id: string, name?: string): RangeNote | null {
+  return RANGE_NOTES[id] ?? (name ? RANGE_NOTES_BY_NAME[name] : undefined) ?? null;
 }
