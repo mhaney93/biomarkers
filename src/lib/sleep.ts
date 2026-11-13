@@ -511,7 +511,7 @@ export const BIOMARKERS: SleepBiomarker[] = [
     unit: "°C vs baseline",
     valueType: "number",
     refLow: "-1",
-    refHigh: "1", // nightly deviations within about +/-1 C of the wearer's baseline are normal
+    refHigh: "1", // nightly deviations within about +/-1 C (+/-1.8 F) of the wearer's baseline are normal
     note: (m) =>
       `Mean of ${m.skinTempDays} nights of sleeping skin temperature minus the wearer's own baseline (positive is warmer). Google Health.`,
   },

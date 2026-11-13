@@ -13,7 +13,7 @@ import {
   CartesianGrid,
 } from "recharts";
 import { format } from "date-fns";
-import { formatDuration } from "@/lib/duration";
+import { formatValue, isSpecialFormat } from "@/lib/display";
 
 type Point = { takenAt: string; value: number; source?: string };
 
@@ -48,7 +48,8 @@ export function TrendChart({
   refLow: number | null;
   refHigh: number | null;
 }) {
-  const isDuration = valueType === "duration";
+  const isSpecial = isSpecialFormat(valueType, unit);
+  const fmt = (v: number) => formatValue(v, valueType, unit);
   const series = sources && sources.length > 1 ? sources : null;
   // One row per reading; a multi-source row fills only its own source's column.
   const chartData = data.map((d) => ({
@@ -59,7 +60,7 @@ export function TrendChart({
 
   const hasRange = refLow != null && refHigh != null && refLow !== refHigh;
   const singleRef = !hasRange ? refLow ?? refHigh : null;
-  const refFormat = (v: number) => (isDuration ? formatDuration(v) : `${v}${unit ? ` ${unit}` : ""}`);
+  const refFormat = fmt;
 
   return (
     <div className="h-72 w-full">
@@ -126,8 +127,8 @@ export function TrendChart({
             width={60}
             domain={["auto", "auto"]}
             padding={{ top: 16, bottom: 16 }}
-            unit={!isDuration && unit ? ` ${unit}` : undefined}
-            tickFormatter={isDuration ? (v: number) => formatDuration(v) : undefined}
+            unit={!isSpecial && unit ? ` ${unit}` : undefined}
+            tickFormatter={isSpecial ? fmt : undefined}
           />
           <Tooltip
             contentStyle={{
@@ -139,7 +140,7 @@ export function TrendChart({
             }}
             labelStyle={{ color: "var(--muted-foreground)" }}
             formatter={(value, name) => [
-              isDuration ? formatDuration(Number(value)) : unit ? `${value} ${unit}` : `${value}`,
+              fmt(Number(value)),
               series ? name : "Value",
             ]}
           />

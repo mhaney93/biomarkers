@@ -2,7 +2,7 @@ import Link from "next/link";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { allergenBadgeLabel, getAllergenBadgeProps, getBadgeProps, statusLabels } from "@/lib/status";
-import { formatDuration } from "@/lib/duration";
+import { formatValue, formatRange, isSpecialFormat } from "@/lib/display";
 import { AlertTriangle } from "lucide-react";
 import { format } from "date-fns";
 import { ageInDays } from "@/lib/staleness";
@@ -30,8 +30,8 @@ function RetestDueList({ items }: { items: RetestDue[] }) {
                 >
                   <span className="min-w-0 truncate font-medium">{b.name}</span>
                   <span className="shrink-0 text-right tabular-nums text-muted-foreground">
-                    {b.valueType === "duration" && value != null ? formatDuration(value) : value}
-                    {b.valueType !== "duration" && b.unit && ` ${b.unit}`} · {format(new Date(takenAt), "MMM d, yyyy")} ·{" "}
+                    {isSpecialFormat(b.valueType, b.unit) && value != null ? formatValue(value, b.valueType, b.unit) : value}
+                    {!isSpecialFormat(b.valueType, b.unit) && b.unit && ` ${b.unit}`} · {format(new Date(takenAt), "MMM d, yyyy")} ·{" "}
                     {ageInDays(takenAt) >= 1
                       ? `${formatDistanceToNowStrict(new Date(takenAt))} ago`
                       : "today"}
@@ -93,8 +93,8 @@ export function IssuesSection({ issues, retestDue }: { issues: Issue[]; retestDu
                 <div className="flex shrink-0 items-center gap-3">
                   <div className="text-right">
                     <p className="tabular-nums leading-tight">
-                      {b.valueType === "duration" && value != null ? (
-                        formatDuration(value)
+                      {isSpecialFormat(b.valueType, b.unit) && value != null ? (
+                        formatValue(value, b.valueType, b.unit)
                       ) : (
                         <>
                           {value}
@@ -104,9 +104,7 @@ export function IssuesSection({ issues, retestDue }: { issues: Issue[]; retestDu
                     </p>
                     <p className="text-xs text-muted-foreground">
                       ref{" "}
-                      {b.valueType === "duration"
-                        ? `${refLow != null ? formatDuration(refLow) : "–"}–${refHigh != null ? formatDuration(refHigh) : "–"}`
-                        : `${refLow ?? "–"}–${refHigh ?? "–"}`}
+                      {formatRange(refLow, refHigh, b.valueType, b.unit)}
                     </p>
                     {b.latest && (
                       <p className="text-xs text-muted-foreground">
