@@ -1,5 +1,5 @@
 import { getDb } from "@/db";
-import { biomarkers, readings } from "@/db/schema";
+import { biomarkers, readingPhotos, readings } from "@/db/schema";
 import { asc, eq, inArray, sql } from "drizzle-orm";
 import { notFound, redirect } from "next/navigation";
 import { Breadcrumbs, type Crumb } from "@/components/breadcrumbs";
@@ -22,6 +22,8 @@ import { DeleteReadingButton } from "@/components/delete-reading-button";
 import { TermsKey, biomarkerTexts } from "@/components/terms-key";
 import { RangeNote } from "@/components/range-note";
 import { UnlockDialog } from "@/components/unlock-dialog";
+import { ReadingPhotos } from "@/components/reading-photos";
+import { PHOTO_BIOMARKER_IDS } from "@/lib/photos";
 import {
   allergenBadgeLabel,
   getAllergenBadgeProps,
@@ -92,6 +94,19 @@ export default async function BiomarkerPage({
       .where(sources ? inArray(readings.biomarkerId, sources.map((s) => s.biomarkerId)) : eq(readings.biomarkerId, id))
       .orderBy(asc(readings.takenAt))
   ).map((r) => ({ ...r, source: sourceOf.get(r.biomarkerId) ?? null }));
+  // Progress photos (ids only; the images load from /api/photos). Anyone can view them; attaching
+  // and removing needs an unlocked session.
+  const photosEnabled = PHOTO_BIOMARKER_IDS.has(id);
+  const photoIdsByReading = new Map<string, string[]>();
+  if (photosEnabled && allReadings.length > 0) {
+    const photos = await db
+      .select({ id: readingPhotos.id, readingId: readingPhotos.readingId })
+      .from(readingPhotos)
+      .where(inArray(readingPhotos.readingId, allReadings.map((r) => r.id)))
+      .orderBy(asc(readingPhotos.createdAt));
+    for (const p of photos) photoIdsByReading.set(p.readingId, [...(photoIdsByReading.get(p.readingId) ?? []), p.id]);
+  }
+  const showPhotos = photosEnabled && (authed || photoIdsByReading.size > 0);
   // The headline value and its range flag come from the primary source only.
   const primaryReadings = allReadings.filter((r) => r.biomarkerId === id);
 
@@ -208,6 +223,7 @@ export default async function BiomarkerPage({
                   <TableHead>Value</TableHead>
                   {!isText && <TableHead>Status</TableHead>}
                   <TableHead>Notes</TableHead>
+                  {showPhotos && <TableHead>Photos</TableHead>}
                   {authed && <TableHead className="w-20" />}
                 </TableRow>
               </TableHeader>
@@ -250,6 +266,17 @@ export default async function BiomarkerPage({
                       <TableCell className="max-w-[240px] truncate text-muted-foreground">
                         {r.notes ?? ""}
                       </TableCell>
+                      {showPhotos && (
+                        <TableCell>
+                          <ReadingPhotos
+                            readingId={r.id}
+                            biomarkerId={biomarker.id}
+                            dateLabel={format(new Date(r.takenAt), "MMM d, yyyy")}
+                            photoIds={photoIdsByReading.get(r.id) ?? []}
+                            canEdit={authed}
+                          />
+                        </TableCell>
+                      )}
                       {authed && (
                         <TableCell>
                           <div className="flex items-center gap-1">

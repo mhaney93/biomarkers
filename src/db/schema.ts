@@ -117,3 +117,19 @@ export const cpapNights = pgTable("cpap_nights", {
   score: integer("score"),
   syncedAt: timestamp("synced_at", { withTimezone: true }).notNull().defaultNow(),
 });
+
+// Progress photos attached to a reading (Body Weight entries; see lib/photos.ts). The image is
+// stored here (base64), not in the repo, and served by /api/photos/[id].
+export const readingPhotos = pgTable(
+  "reading_photos",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    readingId: uuid("reading_id")
+      .notNull()
+      .references(() => readings.id, { onDelete: "cascade" }),
+    contentType: text("content_type").notNull(),
+    dataBase64: text("data_base64").notNull(),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (table) => [index("reading_photos_reading_id_idx").on(table.readingId)]
+);

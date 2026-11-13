@@ -1,12 +1,13 @@
 "use server";
 
 import { getDb } from "@/db";
-import { biomarkers, readings } from "@/db/schema";
+import { biomarkers, readingPhotos, readings } from "@/db/schema";
 import { and, eq, isNull } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { cookies } from "next/headers";
 import { AUTH_COOKIE, getAuthToken, getExpectedToken, requireAuth } from "@/lib/auth";
 import { toTotalMinutes } from "@/lib/duration";
+import { MAX_PHOTO_BYTES, PHOTO_BIOMARKER_IDS, sniffImageType } from "@/lib/photos";
 import { runSleepSync } from "@/lib/sleep-sync";
 import { runMyAirSync, sendMyAirCode, verifyMyAirCode } from "@/lib/myair-sync";
 
@@ -181,6 +182,33 @@ export async function deleteReading(id: string, biomarkerId: string) {
 
   await getDb().delete(readings).where(and(eq(readings.id, id)));
   revalidatePath("/");
+  revalidatePath(`/biomarkers/${biomarkerId}`);
+}
+
+// Attaches a progress photo to a reading shown on a photo-enabled biomarker's page (lib/photos.ts).
+// Errors come back as values: a thrown message is hidden in production.
+export async function addReadingPhoto(formData: FormData): Promise<{ error?: string }> {
+  await requireAuth();
+  const readingId = String(formData.get("readingId") ?? "");
+  const pageId = String(formData.get("biomarkerId") ?? "");
+  const file = formData.get("photo");
+  if (!PHOTO_BIOMARKER_IDS.has(pageId)) return { error: "Photos are not enabled for this biomarker" };
+  if (!(file instanceof File) || file.size === 0) return { error: "Choose a photo" };
+  if (file.size > MAX_PHOTO_BYTES) return { error: "Photo is too large" };
+  const bytes = new Uint8Array(await file.arrayBuffer());
+  const contentType = sniffImageType(bytes);
+  if (!contentType) return { error: "Photo must be a JPEG, PNG or WebP image" };
+  const db = getDb();
+  const [reading] = await db.select({ id: readings.id }).from(readings).where(eq(readings.id, readingId));
+  if (!reading) return { error: "Reading not found" };
+  await db.insert(readingPhotos).values({ readingId, contentType, dataBase64: Buffer.from(bytes).toString("base64") });
+  revalidatePath(`/biomarkers/${pageId}`);
+  return {};
+}
+
+export async function deleteReadingPhoto(id: string, biomarkerId: string) {
+  await requireAuth();
+  await getDb().delete(readingPhotos).where(eq(readingPhotos.id, id));
   revalidatePath(`/biomarkers/${biomarkerId}`);
 }
 
