@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { formatClockHours, formatRange, formatValue, isClockUnit } from "./display";
+import { displayUnit, formatClockHours, formatRange, formatValue, isClockUnit } from "./display";
 
 describe("formatClockHours", () => {
   it("wraps past midnight", () => {
@@ -32,5 +32,19 @@ describe("formatValue", () => {
   it("formats ranges", () => {
     expect(formatRange(null, 24, "number", "h (24 = midnight)")).toBe("––12:00 AM");
     expect(formatRange(1, 2, "number", "mg/dL")).toBe("1–2");
+  });
+});
+
+describe("Fahrenheit", () => {
+  it("converts absolute temperatures", () => {
+    expect(formatValue(37, "number", "°C")).toBe("98.6 °F");
+    expect(formatRange(36.1, 37.2, "number", "°C")).toBe("97–99");
+  });
+  it("converts baseline deltas without the +32 offset", () => {
+    expect(formatValue(0.3, "number", "°C vs baseline")).toBe("+0.5 °F vs baseline");
+    expect(formatValue(-0.5, "number", "°C vs baseline")).toBe("-0.9 °F vs baseline");
+    expect(formatValue(0, "number", "°C vs baseline")).toBe("0 °F vs baseline");
+    expect(formatRange(-1, 1, "number", "°C vs baseline")).toBe("-1.8–+1.8");
+    expect(displayUnit("°C vs baseline")).toBe("°F vs baseline");
   });
 });

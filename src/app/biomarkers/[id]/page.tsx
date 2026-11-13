@@ -34,7 +34,7 @@ import {
 } from "@/lib/status";
 import { getBiomarkersWithLatest, getMaxDeltaPercent } from "@/lib/biomarkers";
 import { isAuthed } from "@/lib/auth";
-import { formatValue, formatRange, isClockUnit, isSpecialFormat } from "@/lib/display";
+import { displayUnit, formatValue, formatRange, isClockUnit, isSpecialFormat } from "@/lib/display";
 import { getPrimaryId, getSources } from "@/lib/sources";
 import { format } from "date-fns";
 
@@ -143,7 +143,7 @@ export default async function BiomarkerPage({
                 : isClockUnit(biomarker.unit)
                   ? "Clock time"
                   : biomarker.unit
-                  ? `Unit: ${biomarker.unit}`
+                  ? `Unit: ${displayUnit(biomarker.unit)}`
                   : "No unit"}
             {!isText && (refLow != null || refHigh != null)
               ? ` · Reference: ${formatRange(refLow, refHigh, biomarker.valueType, biomarker.unit)}`
