@@ -56,6 +56,15 @@ export const sleepSessions = pgTable(
     minutesAsleep: integer("minutes_asleep"),
     mainSleep: boolean("main_sleep"),
     nap: boolean("nap").notNull().default(false),
+    // CLASSIC or STAGES; deep / REM / light minutes (STAGES only), minutes awake after sleep onset and
+    // awakenings of 5+ min (from the stage list), and Google's minutesToFallAsleep. See mapSleep.
+    sleepType: text("sleep_type"),
+    deepMinutes: integer("deep_minutes"),
+    remMinutes: integer("rem_minutes"),
+    lightMinutes: integer("light_minutes"),
+    wasoMinutes: integer("waso_minutes"),
+    awakenings: integer("awakenings"),
+    minutesToFallAsleep: integer("minutes_to_fall_asleep"),
     syncedAt: timestamp("synced_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [index("sleep_sessions_wake_date_idx").on(table.wakeDate)]

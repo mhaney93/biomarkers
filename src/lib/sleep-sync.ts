@@ -1,4 +1,4 @@
-// The sleep sync: pull nights and daily RHR / HRV from Google Health into sleep_sessions and
+// The sleep sync: pull nights (with their sleep stages) and daily RHR / HRV from Google Health into sleep_sessions and
 // daily_health, a year-long window at a time from a resumable cursor, then write each completed
 // month's values (and the current month's average so far) to the "Sleep" biomarkers. Run by the daily cron and the "Sync now" button.
 import { and, eq, gte, inArray, lt, notInArray, sql } from "drizzle-orm";
@@ -157,6 +157,13 @@ async function syncWindow(
           minutesAsleep: excluded("minutes_asleep"),
           mainSleep: excluded("main_sleep"),
           nap: excluded("nap"),
+          sleepType: excluded("sleep_type"),
+          deepMinutes: excluded("deep_minutes"),
+          remMinutes: excluded("rem_minutes"),
+          lightMinutes: excluded("light_minutes"),
+          wasoMinutes: excluded("waso_minutes"),
+          awakenings: excluded("awakenings"),
+          minutesToFallAsleep: excluded("minutes_to_fall_asleep"),
           syncedAt: sql`now()`,
         },
       });
@@ -199,6 +206,11 @@ export async function publishMonths(cursor: string, today = pacificToday()): Pro
       minutesAsleep: sleepSessions.minutesAsleep,
       mainSleep: sleepSessions.mainSleep,
       nap: sleepSessions.nap,
+      deepMinutes: sleepSessions.deepMinutes,
+      remMinutes: sleepSessions.remMinutes,
+      lightMinutes: sleepSessions.lightMinutes,
+      wasoMinutes: sleepSessions.wasoMinutes,
+      awakenings: sleepSessions.awakenings,
     })
     .from(sleepSessions);
   const daily = await db

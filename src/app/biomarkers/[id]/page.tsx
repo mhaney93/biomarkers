@@ -272,7 +272,7 @@ export default async function BiomarkerPage({
         </CardContent>
       </Card>
 
-      {!isText && (refLow != null || refHigh != null) && <RangeNote biomarkerId={biomarker.id} />}
+      {!isText && (refLow != null || refHigh != null) && <RangeNote biomarkerId={biomarker.id} name={biomarker.name} />}
 
       <TermsKey
         texts={biomarkerTexts(

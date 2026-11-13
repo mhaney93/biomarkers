@@ -43,8 +43,20 @@ const civil = (iso: string) => {
   };
 };
 
+// A STAGES night's segments (minutes from the start, 450 in all): 10 awake before falling asleep,
+// then 6 and 2 min awake after it (one awakening of 5+ min, 8 min WASO).
+const STAGES: [string, number][] = [["AWAKE", 10], ["LIGHT", 200], ["AWAKE", 6], ["DEEP", 70], ["REM", 90], ["AWAKE", 2], ["LIGHT", 72]];
+function stages(start: string) {
+  let t = Date.parse(start);
+  return STAGES.map(([type, min]) => {
+    const seg = { type, startTime: new Date(t).toISOString(), endTime: new Date(t + min * 60e3).toISOString() };
+    t += min * 60e3;
+    return seg;
+  });
+}
+
 // One main sleep per wake date from Aug 1 to Nov 1 2026, 23:00 -> 06:30 local, with
-// `asleep(date)` minutes asleep; plus daily RHR 50 and HRV 40.
+// `asleep(date)` minutes asleep and the STAGES segments above; plus daily RHR 50 and HRV 40.
 function fakeGoogle(asleep: (date: string) => number, drop: string[] = []): HealthClient & { calls: string[] } {
   const dates: string[] = [];
   for (let t = Date.parse("2026-08-01"); t <= Date.parse("2026-11-01"); t += 86400e3) dates.push(new Date(t).toISOString().slice(0, 10));
@@ -63,8 +75,20 @@ function fakeGoogle(asleep: (date: string) => number, drop: string[] = []): Heal
             name: `users/me/dataTypes/sleep/dataPoints/s-${d}`,
             sleep: {
               interval: { startTime: start, endTime: end, civilStartTime: civil(start), civilEndTime: civil(end) },
+              type: "STAGES",
+              stages: stages(start),
               metadata: { mainSleep: true, nap: false },
-              summary: { minutesAsleep: String(asleep(d)), minutesInSleepPeriod: "450" },
+              summary: {
+                minutesAsleep: String(asleep(d)),
+                minutesInSleepPeriod: "450",
+                minutesToFallAsleep: "0",
+                stagesSummary: [
+                  { type: "AWAKE", minutes: "18", count: "3" },
+                  { type: "LIGHT", minutes: "272", count: "2" },
+                  { type: "DEEP", minutes: "70", count: "1" },
+                  { type: "REM", minutes: "90", count: "1" },
+                ],
+              },
             },
           };
         });
@@ -221,6 +245,34 @@ test("publishes SpO2, respiratory rate, skin temperature, pre-sleep heart rate a
     .innerJoin(biomarkers, eq(readings.biomarkerId, biomarkers.id))
     .where(eq(biomarkers.name, "Overnight SpO2 (Monthly)"));
   assert.ok(notes.some((n) => n.notes?.includes("lowest night 88%")));
+});
+
+test("publishes time in bed, efficiency, sleep stages, awake time and awakenings", async () => {
+  const r = await runSleepSync({ today: TODAY, client: fakeGoogle(monthAsleep), budgetMs: 60_000 });
+  assert.equal(r.error, undefined);
+  const [s] = await db.select().from(sleepSessions).where(eq(sleepSessions.wakeDate, "2026-10-15"));
+  assert.deepEqual(
+    [s.sleepType, s.deepMinutes, s.remMinutes, s.lightMinutes, s.wasoMinutes, s.awakenings, s.minutesToFallAsleep],
+    ["STAGES", 70, 90, 272, 8, 1, 0],
+  );
+  const { out } = await readingsByName();
+  assert.deepEqual(out["Time in Bed (Monthly)"], ["2026-08-31=450", "2026-09-30=450", "2026-10-31=450"]);
+  // October: 420 of 450 minutes asleep.
+  assert.deepEqual(out["Sleep Efficiency (Monthly)"], ["2026-08-31=94.7", "2026-09-30=96.7", "2026-10-31=93.3"]);
+  assert.deepEqual(out["Deep Sleep (Monthly)"], ["2026-08-31=70", "2026-09-30=70", "2026-10-31=70"]);
+  assert.deepEqual(out["REM Sleep (Monthly)"], ["2026-08-31=90", "2026-09-30=90", "2026-10-31=90"]);
+  assert.deepEqual(out["Light Sleep (Monthly)"], ["2026-08-31=272", "2026-09-30=272", "2026-10-31=272"]);
+  assert.deepEqual(out["Awake Time After Falling Asleep (Monthly)"], ["2026-08-31=8", "2026-09-30=8", "2026-10-31=8"]);
+  assert.deepEqual(out["Awakenings (Monthly)"], ["2026-08-31=1", "2026-09-30=1", "2026-10-31=1"]);
+  const [deep] = await db.select().from(biomarkers).where(eq(biomarkers.name, "Deep Sleep (Monthly)"));
+  assert.equal(deep.valueType, "duration");
+  assert.equal(Number(deep.refLow), 55);
+  const notes = await db
+    .select({ notes: readings.notes })
+    .from(readings)
+    .innerJoin(biomarkers, eq(readings.biomarkerId, biomarkers.id))
+    .where(eq(biomarkers.name, "Deep Sleep (Monthly)"));
+  assert.ok(notes.some((n) => n.notes?.includes("(16% of sleep stages) over 31 nights with sleep stages")));
 });
 
 test("the in-progress month is published as a labelled month-to-date value, then finalised", async () => {
