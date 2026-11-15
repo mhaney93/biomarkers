@@ -17,7 +17,7 @@ import { formatValue, isSpecialFormat } from "@/lib/display";
 
 type Point = { takenAt: string; value: number; source?: string };
 
-// Primary source first: a connected line. Other sources: unconnected markers of their own shape.
+// One line connects every reading in date order; each source keeps its own marker (primary: dots, others: diamonds).
 const SERIES_COLORS = ["#2a78d6", "#d9730d", "#8e44ad"];
 
 // A diamond marker; recharts calls it for every row, including rows without this source's value.
@@ -52,7 +52,9 @@ export function TrendChart({
   const fmt = (v: number) => formatValue(v, valueType, unit);
   const series = sources && sources.length > 1 ? sources : null;
   // One row per reading; a multi-source row fills only its own source's column.
-  const chartData = data.map((d) => ({
+  const chartData = [...data]
+    .sort((a, b) => new Date(a.takenAt).getTime() - new Date(b.takenAt).getTime())
+    .map((d) => ({
     ...d,
     label: format(new Date(d.takenAt), "MMM d, yyyy"),
     ...(series ? { [`s${Math.max(series.indexOf(d.source ?? ""), 0)}`]: d.value } : {}),
@@ -147,16 +149,24 @@ export function TrendChart({
           {series ? (
             <>
               <Legend iconSize={10} wrapperStyle={{ fontSize: 12 }} />
+              <Line
+                type="monotone"
+                dataKey="value"
+                stroke={SERIES_COLORS[0]}
+                strokeWidth={2}
+                dot={false}
+                activeDot={false}
+                legendType="none"
+                tooltipType="none"
+              />
               {series.map((label, i) =>
                 i === 0 ? (
                   <Line
                     key={label}
                     name={label}
-                    type="monotone"
                     dataKey="s0"
                     stroke={SERIES_COLORS[0]}
-                    strokeWidth={2}
-                    connectNulls
+                    strokeWidth={0}
                     dot={{ r: 4, fill: SERIES_COLORS[0], strokeWidth: 0 }}
                     activeDot={{ r: 6 }}
                     legendType="circle"
