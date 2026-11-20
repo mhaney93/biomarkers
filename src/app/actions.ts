@@ -8,8 +8,8 @@ import { cookies } from "next/headers";
 import { AUTH_COOKIE, getAuthToken, getExpectedToken, requireAuth } from "@/lib/auth";
 import { toTotalMinutes } from "@/lib/duration";
 import { MAX_PHOTO_BYTES, PHOTO_BIOMARKER_IDS, sniffImageType } from "@/lib/photos";
-import { runSleepSync } from "@/lib/sleep-sync";
-import { runMyAirSync, sendMyAirCode, verifyMyAirCode } from "@/lib/myair-sync";
+import { disconnectGoogle, runSleepSync } from "@/lib/sleep-sync";
+import { disconnectMyAir, runMyAirSync, sendMyAirCode, verifyMyAirCode } from "@/lib/myair-sync";
 
 function resolveReadingValue(formData: FormData): { value: string | null; textValue: string | null } {
   if (formData.has("textValue")) {
@@ -250,6 +250,32 @@ export async function verifyMyAirCodeNow(code: string): Promise<{ error?: string
     revalidatePath("/");
   revalidatePath("/categories/Sleep");
     return {};
+  } catch (e) {
+    return { error: (e as Error).message };
+  }
+}
+
+// Disconnect a sync: revoke at the provider where it has an API, delete the stored tokens and, with
+// `purge`, the service's nightly rows (published monthly readings stay).
+export async function disconnectGoogleNow(purge: boolean): Promise<{ revoked?: boolean; error?: string }> {
+  await requireAuth();
+  try {
+    const r = await disconnectGoogle({ purge });
+    revalidatePath("/");
+    revalidatePath("/categories/Sleep");
+    return { revoked: r.revoked };
+  } catch (e) {
+    return { error: (e as Error).message };
+  }
+}
+
+export async function disconnectMyAirNow(purge: boolean): Promise<{ revoked?: boolean; error?: string }> {
+  await requireAuth();
+  try {
+    const r = await disconnectMyAir({ purge });
+    revalidatePath("/");
+    revalidatePath("/categories/Sleep");
+    return { revoked: r.revoked };
   } catch (e) {
     return { error: (e as Error).message };
   }

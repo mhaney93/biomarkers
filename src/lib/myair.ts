@@ -211,6 +211,17 @@ export function myAirAuth(region: MyAirRegion, fetchImpl: typeof fetch = fetch) 
       if (result.status !== "SUCCESS") throw new MyAirAuthError("myAir did not accept the code");
       return result;
     },
+    // Revoke an access token at Okta (RFC 7009; myAir is a public client, so client_id is enough).
+    // There is no refresh token to revoke (no offline_access), and Okta has no API for forgetting the
+    // remembered-device cookie; that one only dies when deleted here and expires at Okta.
+    async revoke(accessToken: string) {
+      const res = await call(`${oauth}/revoke`, {
+        method: "POST",
+        headers: FORM_HEADERS,
+        body: new URLSearchParams({ client_id: region.clientId, token: accessToken, token_type_hint: "access_token" }),
+      });
+      return res.ok;
+    },
   };
 }
 

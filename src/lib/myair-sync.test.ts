@@ -13,7 +13,8 @@ let db: ReturnType<typeof drizzle<typeof schema>>;
 vi.mock("@/db", () => ({ getDb: () => db }));
 vi.mock("next/cache", () => ({ revalidatePath: () => {} }));
 
-const { runMyAirSync, sendMyAirCode, verifyMyAirCode, getMyAirStatus } = await import("@/lib/myair-sync");
+const { runMyAirSync, sendMyAirCode, verifyMyAirCode, getMyAirStatus, disconnectMyAir } = await import("@/lib/myair-sync");
+const { decryptNullable, isEncrypted } = await import("@/lib/token-crypto");
 const { biomarkers, cpapNights, myairAuth, readings } = schema;
 
 const TODAY = "2026-11-02";
@@ -24,6 +25,8 @@ beforeEach(async () => {
   await apply();
   vi.stubEnv("MYAIR_USERNAME", "me@example.com");
   vi.stubEnv("MYAIR_PASSWORD", "hunter2");
+  // Test-only key (base64 of "0123456789abcdef0123456789abcdef").
+  vi.stubEnv("TOKEN_ENCRYPTION_KEY", "MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=");
 });
 afterEach(() => {
   vi.unstubAllEnvs();
@@ -119,7 +122,9 @@ test("a stored token myAir no longer accepts is replaced by one fresh sign-in", 
   const r = await runMyAirSync({ today: TODAY, fetchImpl: f.fetchImpl });
   assert.equal(r.error, undefined, r.message);
   assert.equal(f.calls.filter((c) => c.url.endsWith("/api/v1/authn")).length, 1);
-  assert.equal((await db.select().from(myairAuth))[0].accessToken, "access-1");
+  const [stored] = await db.select().from(myairAuth);
+  assert.ok(isEncrypted(stored.accessToken!), "tokens are stored encrypted");
+  assert.equal(decryptNullable(stored.accessToken, "myair_auth.accessToken"), "access-1");
 });
 
 test("an account that wants an emailed code: sync reports it, send + verify signs in for good", async () => {
@@ -134,7 +139,7 @@ test("an account that wants an emailed code: sync reports it, send + verify sign
   await assert.rejects(verifyMyAirCode("111111", f.fetchImpl), /Invalid Passcode/);
   await verifyMyAirCode("123 456", f.fetchImpl);
   const [auth] = await db.select().from(myairAuth);
-  assert.equal(auth.deviceToken, "dt-remembered");
+  assert.equal(decryptNullable(auth.deviceToken, "myair_auth.deviceToken"), "dt-remembered");
   assert.equal(auth.mfaStateToken, null);
   assert.equal((await getMyAirStatus())?.mfaSentAt, null);
 
@@ -181,5 +186,25 @@ test("without credentials the sync does nothing", async () => {
   vi.stubEnv("MYAIR_USERNAME", "");
   const r = await runMyAirSync({ today: TODAY, fetchImpl: fakeMyAir().fetchImpl });
   assert.equal(r.error, "not-configured");
+  assert.deepEqual(await db.select().from(myairAuth), []);
+});
+
+test("a legacy plaintext token is re-encrypted on the next read", async () => {
+  await db.insert(myairAuth).values({ id: 1, deviceToken: "dt-plain" });
+  await runMyAirSync({ today: TODAY, fetchImpl: fakeMyAir({ records: RECORDS }).fetchImpl, budgetMs: 0 });
+  const [auth] = await db.select().from(myairAuth);
+  assert.ok(isEncrypted(auth.deviceToken!));
+});
+
+test("disconnect deletes the sign-in state, optionally the nights, and the cron stays off", async () => {
+  await runMyAirSync({ today: TODAY, fetchImpl: fakeMyAir({ records: RECORDS }).fetchImpl, budgetMs: 60_000 });
+  const before = (await db.select({ n: count() }).from(cpapNights))[0].n;
+  assert.ok(before > 0);
+  await disconnectMyAir({ purge: true, fetchImpl: fakeMyAir().fetchImpl });
+  assert.deepEqual(await db.select().from(myairAuth), []);
+  assert.equal((await db.select({ n: count() }).from(cpapNights))[0].n, 0);
+  assert.ok((await readingsByName())["CPAP AHI (Monthly)"]?.length, "published monthly readings stay");
+  const cron = await runMyAirSync({ today: TODAY, fetchImpl: fakeMyAir({ records: RECORDS }).fetchImpl, existingOnly: true });
+  assert.equal(cron.error, "not-connected");
   assert.deepEqual(await db.select().from(myairAuth), []);
 });

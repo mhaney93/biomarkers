@@ -30,8 +30,10 @@ import {
   hasScope,
   healthClient,
   refreshAccessToken,
+  revokeGoogleToken,
   type HealthClient,
 } from "@/lib/google";
+import { decryptToken, encryptToken, isEncrypted } from "@/lib/token-crypto";
 
 export type PublishResult = {
   before: string;
@@ -70,19 +72,55 @@ export async function getGoogleStatus() {
   };
 }
 
+// The refresh token is stored encrypted (lib/token-crypto.ts).
+const REFRESH_COLUMN = "google_auth.refresh_token";
+
 export async function saveGoogleTokens(refreshToken: string, scope: string | null) {
+  const stored = encryptToken(refreshToken, REFRESH_COLUMN);
   await getDb()
     .insert(googleAuth)
-    .values({ id: 1, refreshToken, scope })
+    .values({ id: 1, refreshToken: stored, scope })
     .onConflictDoUpdate({
       target: googleAuth.id,
-      set: { refreshToken, scope, connectedAt: sql`now()` },
+      set: { refreshToken: stored, scope, connectedAt: sql`now()` },
     });
 }
 
+// The decrypted refresh token, or null when Google is not connected. A legacy plaintext value is
+// re-encrypted in place.
 export async function storedRefreshToken() {
-  const [row] = await getDb().select({ t: googleAuth.refreshToken }).from(googleAuth).where(eq(googleAuth.id, 1));
-  return row?.t ?? null;
+  const db = getDb();
+  const [row] = await db.select({ t: googleAuth.refreshToken }).from(googleAuth).where(eq(googleAuth.id, 1));
+  if (!row) return null;
+  if (!isEncrypted(row.t))
+    await db.update(googleAuth).set({ refreshToken: encryptToken(row.t, REFRESH_COLUMN) }).where(eq(googleAuth.id, 1));
+  return decryptToken(row.t, REFRESH_COLUMN);
+}
+
+export type DisconnectResult = { revoked: boolean; purged: boolean };
+
+// Disconnect Google: revoke the grant at Google, delete the stored token row, and with `purge` also
+// delete the nightly sleep_sessions and daily_health rows. Published monthly readings stay (they are
+// ordinary readings and can be deleted one by one). The local delete happens even when Google can't
+// be reached; `revoked: false` then tells the owner to remove the app at myaccount.google.com/permissions.
+export async function disconnectGoogle({
+  purge = false,
+  fetchImpl = fetch,
+}: { purge?: boolean; fetchImpl?: typeof fetch } = {}): Promise<DisconnectResult> {
+  const db = getDb();
+  let revoked: boolean;
+  try {
+    const token = await storedRefreshToken();
+    revoked = token ? await revokeGoogleToken(token, fetchImpl) : true;
+  } catch {
+    revoked = false;
+  }
+  await db.delete(googleAuth).where(eq(googleAuth.id, 1));
+  if (purge) {
+    await db.delete(sleepSessions);
+    await db.delete(dailyHealth);
+  }
+  return { revoked, purged: purge };
 }
 
 const excluded = (column: string) => sql.raw(`excluded.${column}`);
@@ -314,7 +352,7 @@ export async function runSleepSync({
     if (!hasScope(row.scope, SLEEP_SCOPE)) throw new ReconnectError("The Google grant does not include sleep data");
     const activity = hasScope(row.scope, ACTIVITY_SCOPE);
     if (!activity) result.needsActivityScope = true;
-    const g = client ?? healthClient((await refreshAccessToken(row.refreshToken)).access_token);
+    const g = client ?? healthClient((await refreshAccessToken((await storedRefreshToken())!)).access_token);
     do {
       const w = nextWindow(cursor, today);
       result.windows.push(await syncWindow(g, w.from, w.to, result.warnings, { today, activity }));

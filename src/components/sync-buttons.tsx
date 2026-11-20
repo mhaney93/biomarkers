@@ -1,10 +1,28 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { RefreshCw } from "lucide-react";
+import { RefreshCw, Unplug } from "lucide-react";
 import { toast } from "sonner";
-import { sendMyAirCodeNow, syncMyAirNow, syncSleepNow, verifyMyAirCodeNow } from "@/app/actions";
+import {
+  disconnectGoogleNow,
+  disconnectMyAirNow,
+  sendMyAirCodeNow,
+  syncMyAirNow,
+  syncSleepNow,
+  verifyMyAirCodeNow,
+} from "@/app/actions";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import type { MyAirSyncResult } from "@/lib/myair-sync";
@@ -22,6 +40,7 @@ export type SleepSyncStatus = {
 
 export type MyAirSyncStatus = {
   configured: boolean;
+  connected: boolean;
   backfillFrom: string | null;
   backfillDone: boolean;
   codeSent: boolean;
@@ -142,6 +161,16 @@ function GoogleHealthButton({ status, googleParam }: { status: SleepSyncStatus; 
           {running ? "Syncing..." : "Sync Google Fitbit Edge"}
         </Button>
       )}
+      {status.connected && (
+        <DisconnectButton
+          service="Google Health"
+          action={disconnectGoogleNow}
+          disabled={running}
+          details="This revokes the app's access at Google and deletes the stored refresh token. The daily sync stops until you connect again."
+          purgeLabel="Also delete the nightly sleep and daily heart-rate / HRV / SpO2 rows synced from Google"
+          notRevoked="Disconnected here, but Google did not confirm the revoke: remove the app at myaccount.google.com/permissions"
+        />
+      )}
     </>
   );
 }
@@ -204,8 +233,18 @@ function MyAirButtons({ status }: { status: MyAirSyncStatus }) {
       )}
       <Button size="sm" variant="outline" onClick={sync} disabled={running} title={hint}>
         <RefreshCw className={`h-4 w-4 ${running ? "animate-spin" : ""}`} />
-        {running ? "Syncing..." : "Sync ResMed myAir"}
+        {running ? "Syncing..." : status.connected ? "Sync ResMed myAir" : "Connect ResMed myAir"}
       </Button>
+      {status.connected && (
+        <DisconnectButton
+          service="ResMed myAir"
+          action={disconnectMyAirNow}
+          disabled={running}
+          details="This revokes the current myAir access token and deletes the stored tokens and remembered-device cookie. The daily sync stops until you sync again; to retire it for good, also remove MYAIR_USERNAME and MYAIR_PASSWORD from the Vercel env."
+          purgeLabel="Also delete the nightly CPAP rows synced from myAir"
+          notRevoked="Disconnected here; myAir did not confirm the token revoke (it expires within an hour)"
+        />
+      )}
     </>
   );
 }
@@ -247,5 +286,67 @@ function MyAirCodeForm({ status }: { status: MyAirSyncStatus }) {
         Verify
       </Button>
     </form>
+  );
+}
+
+// Owner-only (the page renders these buttons only when unlocked; the actions call requireAuth too).
+// Published monthly readings are kept either way; they are ordinary readings.
+function DisconnectButton({
+  service,
+  action,
+  disabled,
+  details,
+  purgeLabel,
+  notRevoked,
+}: {
+  service: string;
+  action: (purge: boolean) => Promise<{ revoked?: boolean; error?: string }>;
+  disabled: boolean;
+  details: string;
+  purgeLabel: string;
+  notRevoked: string;
+}) {
+  const router = useRouter();
+  const [purge, setPurge] = useState(false);
+  const [pending, startTransition] = useTransition();
+
+  return (
+    <AlertDialog onOpenChange={(open) => !open && setPurge(false)}>
+      <AlertDialogTrigger asChild>
+        <Button size="sm" variant="ghost" disabled={disabled || pending} title={`Disconnect ${service}`}>
+          <Unplug className="h-4 w-4" />
+          Disconnect
+        </Button>
+      </AlertDialogTrigger>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>Disconnect {service}?</AlertDialogTitle>
+          <AlertDialogDescription>
+            {details} Monthly readings already published stay.
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <label className="flex items-start gap-2 text-sm">
+          <input type="checkbox" className="mt-0.5" checked={purge} onChange={(e) => setPurge(e.target.checked)} />
+          {purgeLabel}
+        </label>
+        <AlertDialogFooter>
+          <AlertDialogCancel>Cancel</AlertDialogCancel>
+          <AlertDialogAction
+            disabled={pending}
+            onClick={() => {
+              startTransition(async () => {
+                const r = await action(purge);
+                router.refresh();
+                if (r.error) toast.error(r.error);
+                else if (!r.revoked) toast.warning(notRevoked);
+                else toast.success(`${service} disconnected${purge ? "; nightly data deleted" : ""}`);
+              });
+            }}
+          >
+            Disconnect
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
   );
 }
