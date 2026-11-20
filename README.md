@@ -24,9 +24,14 @@ A personal web app for logging lab results and health metrics over time and seei
 
 Anyone with the URL can view the site. Adding, editing, or deleting anything requires the app password. Click **Unlock editing** and enter it, and a cookie keeps you unlocked for 30 days. Every mutating server action calls `requireAuth()` (`src/lib/auth.ts`), so hiding the buttons in the UI is not the only protection.
 
+## Stored tokens
+
+The Google refresh token and myAir's Okta tokens are encrypted at rest with AES-256-GCM (`src/lib/token-crypto.ts`), using `TOKEN_ENCRYPTION_KEY` from the Vercel env (32 bytes, base64 or hex; `openssl rand -base64 32`). A database dump alone does not expose them. Rows written before encryption are re-encrypted by the next sync that reads them. Changing the key makes the stored tokens unreadable, so reconnect Google and sync myAir again after a rotation.
+
 ## Sleep sync
 
 - **Connect**: unlock editing, open the Sleep category, and click **Connect Google** (or **Reconnect Google**). The connect and callback routes (`src/app/api/google/`) refuse anyone without the password cookie, and the refresh token is kept server-side in the `google_auth` table.
+- **Disconnect**: **Disconnect** (next to the sync button, unlocked only) revokes the grant at Google, deletes the stored token and can also delete the nightly `sleep_sessions` / `daily_health` rows. Published monthly readings stay.
 - **Backfill**: after connecting, the page runs **Sync now** until it has read every night Google has, a year per call so each call stays inside the function time limit (`sleep_synced_to` is the resumable cursor).
 - **Daily**: a Vercel cron (`vercel.json`) calls `/api/cron/sleep`, which rereads the last 3 days and publishes any completed month (Pacific time) still missing a value. The route only runs with Vercel's `Authorization: Bearer $CRON_SECRET`.
 - **Rules**: readings are dated the last day of the month. A month that already has a value (on any date in that month) is not written again, except sleep duration: Google's value replaces a different existing one, including hand-entered months. Definitions are in `src/lib/sleep.ts`.
@@ -36,6 +41,7 @@ Anyone with the URL can view the site. Adding, editing, or deleting anything req
 ResMed has no public myAir API, so `src/lib/myair.ts` signs in the way the myAir web app does (Okta username/password, then an OAuth code with PKCE) and reads nightly records from its GraphQL API, as the community Home Assistant `resmed_myair` integration does. ResMed can break this at any time.
 
 - **Credentials**: `MYAIR_USERNAME` and `MYAIR_PASSWORD` (a US/North America myAir account) in the Vercel env. Okta's tokens and remembered-device cookie are kept server-side in the `myair_auth` table; nothing reaches the browser.
+- **Disconnect**: **Disconnect** revokes the current access token at Okta, deletes the `myair_auth` row (so the daily cron stops signing in) and can also delete the nightly `cpap_nights` rows. Published monthly readings stay. **Sync ResMed myAir** connects again; remove the env credentials to retire the sync for good.
 - **Emailed codes**: if myAir asks for one, the Sleep page shows **Send code** and a code box (unlock editing first). After one verified code the device is remembered and later syncs sign in without one.
 - **Backfill and daily**: **Sync myAir** (or the daily cron, `/api/cron/myair`, `CRON_SECRET` as for sleep) rereads the last 3 nights, then walks back a month at a time until 24 months in a row have no nights (`backfill_from` is the resumable cursor). Nights are stored one per date in `cpap_nights`.
 - **Rules**: readings are dated the last day of each completed month (Pacific time), from months with at least 10 nights. Usage averages every night myAir has a record for (zero-use nights count); the others average nights of use. A month whose value changes later (a late upload) is updated. Ranges: usage at least 4 h, AHI at most 5, leak at most 24 L/min. Definitions are in `src/lib/cpap.ts`.
@@ -90,6 +96,8 @@ src/
    # CPAP sync (optional)
    MYAIR_USERNAME=...
    MYAIR_PASSWORD=...
+   # Encrypts the stored Google / myAir tokens (required by either sync): openssl rand -base64 32
+   TOKEN_ENCRYPTION_KEY=...
    ```
 
    If the project is linked to Vercel, `vercel env pull .env.local` fills these in.

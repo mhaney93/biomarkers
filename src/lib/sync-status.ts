@@ -24,6 +24,7 @@ export async function myAirSyncStatus(): Promise<MyAirSyncStatus> {
   const s = configured ? await getMyAirStatus() : null;
   return {
     configured,
+    connected: s != null,
     backfillFrom: s?.backfillFrom ?? null,
     backfillDone: s?.backfillDone ?? false,
     codeSent: s?.mfaSentAt != null,

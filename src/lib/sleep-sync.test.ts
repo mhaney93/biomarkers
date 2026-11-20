@@ -21,6 +21,8 @@ const DURATION = "Average Daily Sleep Duration (Monthly)";
 const TODAY = "2026-11-02";
 
 beforeEach(async () => {
+  // Test-only key (base64 of "0123456789abcdef0123456789abcdef").
+  vi.stubEnv("TOKEN_ENCRYPTION_KEY", "MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=");
   db = drizzle(new PGlite(), { schema });
   const { apply } = await pushSchema(schema, db as never);
   await apply();

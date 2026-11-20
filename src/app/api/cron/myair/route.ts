@@ -10,6 +10,7 @@ export async function GET(request: NextRequest) {
   if (!secret || request.headers.get("authorization") !== `Bearer ${secret}`) {
     return Response.json({ error: "unauthorized" }, { status: 401 });
   }
-  const result = await runMyAirSync();
-  return Response.json(result, { status: result.error && result.error !== "not-configured" ? 500 : 200 });
+  const result = await runMyAirSync({ existingOnly: true });
+  const idle = result.error === "not-configured" || result.error === "not-connected";
+  return Response.json(result, { status: result.error && !idle ? 500 : 200 });
 }

@@ -89,6 +89,19 @@ export const exchangeCode = (code: string, origin: string) =>
 export const refreshAccessToken = (refreshToken: string) =>
   tokenRequest({ refresh_token: refreshToken, grant_type: "refresh_token" });
 
+// Revoke the grant at Google (the refresh token and every access token minted from it). Google answers
+// 400 invalid_token for a token that is already revoked or expired, which counts as done.
+export async function revokeGoogleToken(token: string, fetchImpl: typeof fetch = fetch): Promise<boolean> {
+  const res = await fetchImpl("https://oauth2.googleapis.com/revoke", {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams({ token }),
+  });
+  if (res.ok) return true;
+  const body = await res.json().catch(() => ({}));
+  return res.status === 400 && body.error === "invalid_token";
+}
+
 export type HealthClient = {
   sleep(from: string, to: string): Promise<SleepDataPoint[]>;
   dailyRestingHeartRate(from: string, to: string): Promise<DailyRestingHeartRatePoint[]>;

@@ -29,12 +29,13 @@ import {
   type MyAirClient,
   type MyAirTokens,
 } from "@/lib/myair";
+import { decryptNullable, encryptNullable, isEncrypted } from "@/lib/token-crypto";
 
 export type CpapPublishResult = { from: string; before: string; added: string[]; updated: string[]; skipped: number };
 
 export type MyAirSyncResult = {
   at: string;
-  error?: "not-configured" | "mfa" | "auth" | "failed";
+  error?: "not-configured" | "not-connected" | "mfa" | "auth" | "failed";
   message?: string;
   windows: { from: string; to: string; nights: number }[];
   latest: string | null;
@@ -49,16 +50,42 @@ export type MyAirSyncResult = {
 class MfaRequiredError extends Error {}
 
 type AuthRow = typeof myairAuth.$inferSelect;
+type AuthValues = Partial<typeof myairAuth.$inferInsert>;
 
-async function authRow(): Promise<AuthRow> {
-  const db = getDb();
-  await db.insert(myairAuth).values({ id: 1 }).onConflictDoNothing({ target: myairAuth.id });
-  const [row] = await db.select().from(myairAuth).where(eq(myairAuth.id, 1));
-  return row;
+// Okta's tokens are stored encrypted (lib/token-crypto.ts); these are the columns that hold them.
+const TOKEN_FIELDS = ["deviceToken", "accessToken", "idToken", "mfaStateToken"] as const;
+const column = (field: (typeof TOKEN_FIELDS)[number]) => `myair_auth.${field}`;
+
+function decryptRow(row: AuthRow): AuthRow {
+  const out = { ...row };
+  for (const f of TOKEN_FIELDS) out[f] = decryptNullable(row[f], column(f));
+  return out;
 }
 
-const setAuth = (values: Partial<typeof myairAuth.$inferInsert>) =>
-  getDb().update(myairAuth).set(values).where(eq(myairAuth.id, 1));
+function encryptValues(values: AuthValues): AuthValues {
+  const out = { ...values };
+  for (const f of TOKEN_FIELDS) if (f in out) out[f] = encryptNullable(out[f], column(f));
+  return out;
+}
+
+const setAuth = (values: AuthValues) => getDb().update(myairAuth).set(encryptValues(values)).where(eq(myairAuth.id, 1));
+
+// The sign-in state with its tokens decrypted (legacy plaintext ones are re-encrypted in place).
+// Creates the row unless `existingOnly`: the cron only syncs a connection the owner hasn't disconnected.
+async function authRow({ existingOnly = false } = {}): Promise<AuthRow | null> {
+  const db = getDb();
+  if (!existingOnly) await db.insert(myairAuth).values({ id: 1 }).onConflictDoNothing({ target: myairAuth.id });
+  const [row] = await db.select().from(myairAuth).where(eq(myairAuth.id, 1));
+  if (!row) return null;
+  const plain = TOKEN_FIELDS.filter((f) => row[f] != null && !isEncrypted(row[f]!));
+  const decrypted = decryptRow(row);
+  if (plain.length) await setAuth(Object.fromEntries(plain.map((f) => [f, decrypted[f]])));
+  return decrypted;
+}
+
+async function requireAuthRow() {
+  return (await authRow())!;
+}
 
 async function saveTokens(tokens: MyAirTokens, deviceToken: string | null) {
   await setAuth({
@@ -202,7 +229,15 @@ export async function runMyAirSync({
   today = pacificToday(),
   client,
   fetchImpl = fetch,
-}: { budgetMs?: number; today?: string; client?: MyAirClient; fetchImpl?: typeof fetch } = {}): Promise<MyAirSyncResult> {
+  existingOnly = false,
+}: {
+  budgetMs?: number;
+  today?: string;
+  client?: MyAirClient;
+  fetchImpl?: typeof fetch;
+  // The cron's run: skip when the owner has disconnected myAir (no myair_auth row) instead of signing in again.
+  existingOnly?: boolean;
+} = {}): Promise<MyAirSyncResult> {
   const started = Date.now();
   const result: MyAirSyncResult = {
     at: new Date().toISOString(),
@@ -216,7 +251,13 @@ export async function runMyAirSync({
   if (!client && !myAirConfigured())
     return { ...result, error: "not-configured", message: "MYAIR_USERNAME / MYAIR_PASSWORD are not set" };
   const db = getDb();
-  const row = await authRow();
+  let row: AuthRow | null;
+  try {
+    row = await authRow({ existingOnly });
+  } catch (e) {
+    return { ...result, error: "failed", message: (e as Error).message };
+  }
+  if (!row) return { ...result, error: "not-connected", message: "myAir is disconnected; use Sync ResMed myAir to connect" };
   let from = row.backfillFrom ?? firstOfMonth(today);
   let empty = row.backfillEmptyMonths;
   let done = row.backfillDone;
@@ -271,7 +312,7 @@ export async function runMyAirSync({
 
 // Sign in and, when myAir asks for one, have it email the code. `sent` is false when no code is needed.
 export async function sendMyAirCode(fetchImpl: typeof fetch = fetch): Promise<{ sent: boolean }> {
-  const row = await authRow();
+  const row = await requireAuthRow();
   const { username, password } = myAirCredentials();
   const auth = myAirAuth(MYAIR_NA, fetchImpl);
   const r = await auth.login(username, password, row.deviceToken);
@@ -291,12 +332,34 @@ export async function sendMyAirCode(fetchImpl: typeof fetch = fetch): Promise<{ 
 
 // Finish a sign-in with the emailed code. The device is remembered, so later syncs need no code.
 export async function verifyMyAirCode(code: string, fetchImpl: typeof fetch = fetch) {
-  const row = await authRow();
+  const row = await requireAuthRow();
   if (!row.mfaStateToken || !row.mfaVerifyUrl) throw new MyAirAuthError("No code was requested: use Send code first");
   const clean = code.replace(/\s+/g, "");
   if (!/^\d{4,10}$/.test(clean)) throw new MyAirAuthError("Enter the digits from the myAir email");
   const r = await myAirAuth(MYAIR_NA, fetchImpl).verifyCode(row.mfaStateToken, row.mfaVerifyUrl, clean, row.deviceToken);
   await saveTokens(r.tokens, r.deviceToken);
+}
+
+// Disconnect myAir: revoke the current access token at Okta (best effort), delete the stored sign-in
+// state, and with `purge` also delete the nightly cpap_nights rows. Published monthly readings stay.
+// The username and password are env, not DB: the daily cron no longer signs in (it needs the row),
+// but the Sync button reconnects, so remove MYAIR_USERNAME / MYAIR_PASSWORD from the env to retire it.
+export async function disconnectMyAir({
+  purge = false,
+  fetchImpl = fetch,
+}: { purge?: boolean; fetchImpl?: typeof fetch } = {}): Promise<{ revoked: boolean; purged: boolean }> {
+  const db = getDb();
+  let revoked: boolean;
+  try {
+    const row = await authRow({ existingOnly: true });
+    const live = row?.accessToken && row.tokenExpiresAt && row.tokenExpiresAt.getTime() > Date.now();
+    revoked = live ? await myAirAuth(MYAIR_NA, fetchImpl).revoke(row.accessToken!) : true;
+  } catch {
+    revoked = false;
+  }
+  await db.delete(myairAuth).where(eq(myairAuth.id, 1));
+  if (purge) await db.delete(cpapNights);
+  return { revoked, purged: purge };
 }
 
 export async function getMyAirStatus() {
