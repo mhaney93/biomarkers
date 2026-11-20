@@ -33,7 +33,7 @@ export function redirectUri(origin: string) {
   return `${origin}/api/google/callback`;
 }
 
-// OAuth state = timestamp.nonce.hmac, keyed by `key` (derived from the app password), so the
+// OAuth state = timestamp.nonce.hmac, keyed by `key` (oauthStateKey in lib/auth.ts), so the
 // callback can verify it without storing anything.
 export function makeState(key: string, now = Date.now()) {
   const payload = `${now}.${crypto.randomBytes(8).toString("hex")}`;

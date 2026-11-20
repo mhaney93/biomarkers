@@ -25,6 +25,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { googleErrorMessage } from "@/lib/google-errors";
 import type { MyAirSyncResult } from "@/lib/myair-sync";
 import type { SyncResult } from "@/lib/sleep-sync";
 
@@ -122,7 +123,7 @@ function GoogleHealthButton({ status, googleParam }: { status: SleepSyncStatus; 
       toast.success("Google connected");
       queueMicrotask(() => void sync());
     } else {
-      toast.error(`Google: ${googleParam.reason ?? "connection failed"}`);
+      toast.error(`Google: ${googleErrorMessage(googleParam.reason)}`);
     }
   }, [googleParam, router, sync]);
 

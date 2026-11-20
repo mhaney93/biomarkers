@@ -1,8 +1,8 @@
 "use client";
 
-import { useActionState, useEffect, useState } from "react";
+import { useActionState, useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { unlock } from "@/app/actions";
+import { lock, unlock } from "@/app/actions";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -14,7 +14,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Lock } from "lucide-react";
+import { Lock, LockOpen } from "lucide-react";
 import { toast } from "sonner";
 
 export function UnlockDialog() {
@@ -58,5 +58,28 @@ export function UnlockDialog() {
         </form>
       </DialogContent>
     </Dialog>
+  );
+}
+
+// Ends this browser's edit session (the session row is deleted server-side).
+export function LockButton() {
+  const router = useRouter();
+  const [isPending, startTransition] = useTransition();
+  return (
+    <Button
+      size="sm"
+      variant="ghost"
+      disabled={isPending}
+      onClick={() =>
+        startTransition(async () => {
+          await lock();
+          toast.success("Locked");
+          router.refresh();
+        })
+      }
+    >
+      <LockOpen className="h-4 w-4" />
+      Lock editing
+    </Button>
   );
 }

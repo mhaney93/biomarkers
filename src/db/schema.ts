@@ -133,3 +133,26 @@ export const readingPhotos = pgTable(
   },
   (table) => [index("reading_photos_reading_id_idx").on(table.readingId)]
 );
+
+// Edit sessions from the unlock password (lib/auth.ts). The cookie holds a random token; only its
+// HMAC is stored, keyed from APP_PASSWORD, so changing the password invalidates every session.
+export const authSessions = pgTable(
+  "auth_sessions",
+  {
+    tokenHash: text("token_hash").primaryKey(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+  },
+  (table) => [index("auth_sessions_expires_at_idx").on(table.expiresAt)]
+);
+
+// Failed unlock attempts, for the per-IP and global lockout in lib/auth.ts. Pruned as it goes.
+export const unlockFailures = pgTable(
+  "unlock_failures",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    ip: text("ip").notNull(),
+    at: timestamp("at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [index("unlock_failures_at_idx").on(table.at), index("unlock_failures_ip_at_idx").on(table.ip, table.at)]
+);
