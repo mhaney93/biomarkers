@@ -22,7 +22,10 @@ A personal web app for logging lab results and health metrics over time and seei
 
 ## Access model
 
-Anyone with the URL can view the site. Adding, editing, or deleting anything requires the app password. Click **Unlock editing** and enter it, and a cookie keeps you unlocked for 30 days. Every mutating server action calls `requireAuth()` (`src/lib/auth.ts`), so hiding the buttons in the UI is not the only protection.
+Anyone with the URL can view the site, but it asks search engines not to index it (`robots.txt` disallows everything and every response sends `X-Robots-Tag: noindex`). Adding, editing, or deleting anything requires the app password. Click **Unlock editing** and enter it to start an edit session that lasts 30 days; **Lock editing** ends it. Every mutating server action calls `requireAuth()` (`src/lib/auth.ts`), so hiding the buttons in the UI is not the only protection.
+
+- **Sessions**: the cookie is a random token. The server keeps only a keyed hash of it in `auth_sessions`, with its expiry. Changing `APP_PASSWORD` signs out every session.
+- **Password guessing**: after 5 wrong passwords from one IP, or 20 from all IPs, within 15 minutes, unlock refuses every attempt (the right password included) until the window passes. Failures are recorded in `unlock_failures`.
 
 ## Stored tokens
 
@@ -69,7 +72,7 @@ src/
   components/                                  Cards, dialogs, trend chart, breadcrumbs
   db/schema.ts                                 Drizzle schema (biomarkers, readings, sleep and CPAP sync tables)
   lib/
-    auth.ts                                    Password cookie check
+    auth.ts                                    Edit sessions and unlock rate limit
     sleep.ts, sleep-sync.ts, google.ts         Sleep sync: monthly definitions, DB sync, Google client
     cpap.ts, myair-sync.ts, myair.ts           CPAP sync: monthly definitions, DB sync, myAir client
     status.ts                                  Range status, severity colors, allergen classes

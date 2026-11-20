@@ -4,10 +4,18 @@ import { getDb } from "@/db";
 import { biomarkers, readingPhotos, readings } from "@/db/schema";
 import { and, eq, isNull } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
-import { cookies } from "next/headers";
-import { AUTH_COOKIE, getAuthToken, getExpectedToken, requireAuth } from "@/lib/auth";
+import {
+  clearUnlockFailures,
+  clientIp,
+  createSession,
+  endSession,
+  passwordMatches,
+  recordUnlockFailure,
+  requireAuth,
+  unlockLockedOut,
+} from "@/lib/auth";
 import { toTotalMinutes } from "@/lib/duration";
-import { MAX_PHOTO_BYTES, PHOTO_BIOMARKER_IDS, sniffImageType } from "@/lib/photos";
+import { MAX_PHOTO_BYTES, PHOTO_BIOMARKER_IDS, sniffImageType, stripImageMetadata } from "@/lib/photos";
 import { disconnectGoogle, runSleepSync } from "@/lib/sleep-sync";
 import { disconnectMyAir, runMyAirSync, sendMyAirCode, verifyMyAirCode } from "@/lib/myair-sync";
 
@@ -38,24 +46,28 @@ function resolveRefValue(formData: FormData, prefix: "refLow" | "refHigh"): stri
   return value ? String(value) : null;
 }
 
+// Rate-limited: after too many wrong passwords (per IP or overall) it refuses every attempt for a
+// while, the right password included (lib/auth.ts).
 export async function unlock(_prevState: { error: string } | undefined, formData: FormData) {
   const password = String(formData.get("password") ?? "");
+  const ip = await clientIp();
 
-  const [actual, expected] = await Promise.all([getAuthToken(password), getExpectedToken()]);
-  if (actual !== expected) {
+  if (await unlockLockedOut(ip)) {
+    return { error: "Too many wrong passwords. Try again in 15 minutes." };
+  }
+  if (!passwordMatches(password)) {
+    await recordUnlockFailure(ip);
     return { error: "Incorrect password" };
   }
 
-  const cookieStore = await cookies();
-  cookieStore.set(AUTH_COOKIE, expected, {
-    httpOnly: true,
-    secure: true,
-    sameSite: "lax",
-    path: "/",
-    maxAge: 60 * 60 * 24 * 30,
-  });
-
+  await clearUnlockFailures(ip);
+  await createSession();
   return { error: "" };
+}
+
+export async function lock() {
+  await endSession();
+  revalidatePath("/", "layout");
 }
 
 export async function createBiomarker(formData: FormData) {
@@ -198,10 +210,13 @@ export async function addReadingPhoto(formData: FormData): Promise<{ error?: str
   const bytes = new Uint8Array(await file.arrayBuffer());
   const contentType = sniffImageType(bytes);
   if (!contentType) return { error: "Photo must be a JPEG, PNG or WebP image" };
+  // The UI already re-encodes photos without EXIF; strip here too for uploads that skip it.
+  const clean = stripImageMetadata(bytes, contentType);
+  if (!clean) return { error: "Could not read the photo" };
   const db = getDb();
   const [reading] = await db.select({ id: readings.id }).from(readings).where(eq(readings.id, readingId));
   if (!reading) return { error: "Reading not found" };
-  await db.insert(readingPhotos).values({ readingId, contentType, dataBase64: Buffer.from(bytes).toString("base64") });
+  await db.insert(readingPhotos).values({ readingId, contentType, dataBase64: Buffer.from(clean).toString("base64") });
   revalidatePath(`/biomarkers/${pageId}`);
   return {};
 }

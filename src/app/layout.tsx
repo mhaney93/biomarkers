@@ -16,6 +16,7 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "Biomarkers",
   description: "Track your biomarkers and lab results over time",
+  robots: { index: false, follow: false, nocache: true },
 };
 
 export default function RootLayout({

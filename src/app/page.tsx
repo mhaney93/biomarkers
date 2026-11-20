@@ -1,6 +1,6 @@
 import { Card, CardContent } from "@/components/ui/card";
 import { AddBiomarkerDialog } from "@/components/add-biomarker-dialog";
-import { UnlockDialog } from "@/components/unlock-dialog";
+import { LockButton, UnlockDialog } from "@/components/unlock-dialog";
 import { BiomarkersBrowser } from "@/components/biomarkers-browser";
 import { IssuesSection } from "@/components/issues-section";
 import { getBiomarkersWithLatest, getIssues, getMaxDeltaPercent, getRetestDue, groupHierarchy } from "@/lib/biomarkers";
@@ -27,7 +27,14 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ g
       <div className="mb-8 flex items-start justify-between gap-4">
         <h1 className="text-2xl font-semibold tracking-tight">Biomarkers</h1>
         <div className="flex flex-col items-end gap-2">
-          {authed ? <AddBiomarkerDialog /> : <UnlockDialog />}
+          {authed ? (
+            <div className="flex gap-2">
+              <LockButton />
+              <AddBiomarkerDialog />
+            </div>
+          ) : (
+            <UnlockDialog />
+          )}
           {googleStatus && myAirStatus && <SyncButtons google={googleStatus} myAir={myAirStatus} googleParam={googleParam} />}
         </div>
       </div>

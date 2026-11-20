@@ -20,7 +20,8 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
   return new Response(Buffer.from(photo.dataBase64, "base64"), {
     headers: {
       "Content-Type": photo.contentType,
-      "Cache-Control": "public, max-age=86400",
+      // No shared or long-lived copies, so a deleted photo stops being served at once.
+      "Cache-Control": "private, no-store",
       "X-Content-Type-Options": "nosniff",
     },
   });
